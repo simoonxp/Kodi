@@ -50,7 +50,6 @@ lib/         módulos da versão local
 ## Próximos passos
 
 - Sincronização entre aparelhos com criptografia de ponta a ponta
-- Ícone e identidade visual próprios
 
 ---
 
