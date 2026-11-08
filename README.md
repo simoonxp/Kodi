@@ -47,10 +47,6 @@ server.js    versão local em Node (inclui a aba Claude Code)
 lib/         módulos da versão local
 ```
 
-## Próximos passos
-
-- Sincronização entre aparelhos com criptografia de ponta a ponta
-
 ---
 
 Feito por **Felipe Simon** · [@simoonxp](https://github.com/simoonxp)
