@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.3.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.4.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -19,7 +19,7 @@
   let cfg = {};
   const S = {
     appName: 'IA', mode: 'chat', codeMode: false, codeCfg: null,
-    key: null, conn: null, access: '', model: '', models: [],
+    key: null, conn: null, access: '', model: '', models: [], good: [],
     chats: [], chat: null, messages: [], codeSessions: [],
     current: { id: null, project: null, cwd: null },
     search: '', streaming: false, abort: null, deferred: null,
@@ -187,7 +187,7 @@
     let idle;
     const bump = ms => { clearTimeout(idle); idle = setTimeout(() => ac.abort(), ms); };
     try {
-      bump(120000);
+      bump(45000);
       const res = await nvFetch('/chat/completions', { method: 'POST', body: { model, messages, stream: true, max_tokens: cfg.maxTokens }, signal: ac.signal });
       if (!res.ok) throw await upstreamError(res);
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
@@ -214,7 +214,7 @@
     } catch (e) {
       if (ac.signal.aborted || e.name === 'AbortError') {
         if (signal && signal.aborted) return;                   // o usuário clicou em parar
-        throw friendly('A NVIDIA demorou mais de 2 minutos para responder. Esse modelo deve estar sobrecarregado: escolha outro no seletor lá em cima.');
+        throw friendly(`O modelo ${model} demorou demais para responder (provavelmente está sobrecarregado ou fora do ar).`, 'timeout');
       }
       throw e;
     } finally {
@@ -385,15 +385,49 @@
   function modelCandidates() {
     const rest = [];
     for (const re of PREFER) for (const id of S.models) if (re.test(id)) rest.push(id);
-    return [...new Set([S.model, ...rest, ...S.models])];
+    return [...new Set([S.model, ...S.good, ...rest, ...S.models])];
   }
   function fillModels(list) {
     const sel = $('#model');
     const cur = S.model || cfg.defaultModel;
-    const pick = !list.length || list.includes(cur) ? cur : bestModel(list);
-    const ids = [...new Set([pick, ...list])];
-    sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
+    const all = [...new Set([...S.good, ...list])];
+    const pick = !all.length || all.includes(cur) ? cur : (S.good[0] || bestModel(list));
+    const ids = [...new Set([pick, ...S.good, ...list])];
+    sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${S.good.includes(id) ? '✓ ' : ''}${esc(id)}</option>`).join('');
     sel.value = pick; S.model = pick;
+  }
+  // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
+  let probing = false;
+  async function probeModels(onProgress = () => {}) {
+    if (probing || !S.key || !S.models.length) return null;
+    probing = true;
+    const ranked = [];
+    for (const re of PREFER) for (const id of S.models) if (re.test(id)) ranked.push(id);
+    const cands = [...new Set([...ranked, ...S.models])].slice(0, 24);
+    const ok = []; let done = 0, next = 0;
+    const one = async m => {
+      const t0 = Date.now(); const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 20000);
+      try {
+        const r = await nvFetch('/chat/completions', { method: 'POST', body: { model: m, messages: [{ role: 'user', content: 'oi' }], max_tokens: 1, stream: false }, signal: ac.signal });
+        if (r.ok) ok.push({ id: m, ms: Date.now() - t0 });
+        await r.text().catch(() => '');
+      } catch { /* sem resposta: modelo descartado */ }
+      clearTimeout(to); onProgress(++done, cands.length, ok.length);
+    };
+    const pool = async () => { while (next < cands.length) await one(cands[next++]); };
+    try { await Promise.all([pool(), pool(), pool(), pool(), pool()]); } finally { probing = false; }
+    ok.sort((a, b) => a.ms - b.ms);
+    S.good = ok.map(x => x.id);
+    Store.setMeta('good', S.good).catch(() => {});
+    if (S.good.length && !S.good.includes(S.model)) S.model = S.good[0];
+    fillModels(S.models);
+    return { tested: cands.length, ok };
+  }
+  async function autoProbe(msg) {
+    toast(msg);
+    const r = await probeModels();
+    if (!r) return;
+    toast(r.ok.length ? `${r.ok.length} modelo(s) respondem na sua conta. Usando ${S.model}.` : 'Nenhum modelo respondeu agora. Tente de novo mais tarde (a NVIDIA pode estar lenta).');
   }
   async function loadModels() {
     if (!S.key) { fillModels([]); return; }
@@ -599,7 +633,7 @@
     inp.value = ''; inp.style.height = 'auto';
     setStreaming(true);
     const ac = new AbortController(); S.abort = ac;
-    let got = '', failed = null;
+    let got = '', failed = null, failCode = null;
     const tried = []; const first = S.model;
     try {
       // Se o modelo escolhido não existir para a conta (404), tenta outros automaticamente até achar um que responda.
@@ -617,6 +651,7 @@
       }
     } catch (e) {
       failed = e.code === 'model404' && tried.length > 1 ? `Tentei ${tried.length} modelos e nenhum está disponível para a sua conta. Escolha um no seletor lá em cima.` : e.friendly ? e.message : 'Erro inesperado: ' + (e && e.message ? e.message : e);
+      failCode = e.code;
       if (!e.friendly) console.error(e);
     } finally { setStreaming(false); S.abort = null; }
     if (!got) S.model = first;
@@ -638,6 +673,7 @@
     if (S.chat) await persistChat();
     await loadChats();
     if (failed && /Configurações/.test(failed) && /chave/i.test(failed)) toast('Confira sua chave em Configurações.');
+    if (failCode === 'timeout') autoProbe('Testando quais modelos respondem na sua conta…');
     if (!matchMedia('(pointer: coarse)').matches) inp.focus();
   }
 
@@ -804,10 +840,11 @@
     fillModels(S.models); updateComposer(); refreshSettings();
     toast(r.conn === 'direct' ? 'Chave salva. Conexão direta com a NVIDIA!' : 'Chave salva. As mensagens vão passar pelo servidor só para serem repassadas.');
     if (!S.chat && S.mode === 'chat') welcome();
+    autoProbe('Chave salva. Testando quais modelos respondem na sua conta…');
   }
   function openSettings() {
     closeDrawer(); refreshSettings(); updateInstallBox();
-    ['keyMsg', 'connMsg', 'dataMsg'].forEach(i => { $('#' + i).textContent = ''; });
+    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg'].forEach(i => { $('#' + i).textContent = ''; });
     $('#dlgSettings').showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -830,6 +867,16 @@
       if (r.invalid) say('connMsg', 'A NVIDIA recusou a chave salva. Cadastre-a de novo.', false);
       else if (r.offline) say('connMsg', 'Não consegui falar com a NVIDIA nem pelo servidor agora.', false);
       else { S.conn = r.conn; S.models = r.models; await Store.setMeta('conn', r.conn); fillModels(S.models); refreshSettings(); updateComposer(); say('connMsg', 'Conexão testada com sucesso.', true); }
+    } finally { b.disabled = false; }
+  });
+
+  $('#modelsTest').addEventListener('click', async () => {
+    const b = $('#modelsTest'); b.disabled = true; $('#modelsMsg').textContent = '';
+    try {
+      const r = await probeModels((d, n, k) => say('modelsMsg', `Testando… ${d} de ${n} (${k} respondendo)`, true));
+      if (!r) say('modelsMsg', 'Cadastre a chave primeiro (ou aguarde o teste que já está rodando).', false);
+      else if (r.ok.length) say('modelsMsg', `${r.ok.length} modelo(s) respondem. Marcados com ✓ no seletor; o mais rápido foi escolhido: ${S.model}.`, true);
+      else say('modelsMsg', 'Nenhum modelo respondeu agora. Tente de novo mais tarde.', false);
     } finally { b.disabled = false; }
   });
 
@@ -902,7 +949,7 @@
     await Store.init();
     try {
       S.key = await Store.getMeta('key'); S.conn = await Store.getMeta('conn');
-      S.access = (await Store.getMeta('access')) || ''; S.model = (await Store.getMeta('model')) || cfg.defaultModel;
+      S.access = (await Store.getMeta('access')) || ''; S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || [];
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
