@@ -9,6 +9,8 @@ Sem conta, sem login, sem ninguém olhando as suas conversas.
 
 Projeto pessoal de **Felipe Simon**
 
+[**Abrir o Kodi →**](https://kodi.simonhot-com.workers.dev/)
+
 </div>
 
 ---
