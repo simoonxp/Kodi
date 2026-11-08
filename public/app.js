@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.2.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.3.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -187,7 +187,7 @@
     let idle;
     const bump = ms => { clearTimeout(idle); idle = setTimeout(() => ac.abort(), ms); };
     try {
-      bump(30000);
+      bump(120000);
       const res = await nvFetch('/chat/completions', { method: 'POST', body: { model, messages, stream: true, max_tokens: cfg.maxTokens }, signal: ac.signal });
       if (!res.ok) throw await upstreamError(res);
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
@@ -214,7 +214,7 @@
     } catch (e) {
       if (ac.signal.aborted || e.name === 'AbortError') {
         if (signal && signal.aborted) return;                   // o usuário clicou em parar
-        throw friendly('A NVIDIA demorou demais para responder. Tente de novo.');
+        throw friendly('A NVIDIA demorou mais de 2 minutos para responder. Esse modelo deve estar sobrecarregado: escolha outro no seletor lá em cima.');
       }
       throw e;
     } finally {
@@ -282,16 +282,24 @@
   function showError(text) {
     const e = document.createElement('div'); e.className = 'err-box'; e.textContent = text; msgs.appendChild(e); scrollDown(true); return e;
   }
+  const fmtSecs = ms => { const t = Math.floor(ms / 1000); return t < 60 ? t + 's' : Math.floor(t / 60) + 'min ' + String(t % 60).padStart(2, '0') + 's'; };
   class AsstView {
-    constructor() {
+    constructor(live = false) {
       this.el = document.createElement('div'); this.el.className = 'asst';
       this.el.innerHTML = '<details class="think" hidden><summary>Raciocínio do modelo</summary><div class="thinkbody"></div></details><div class="txt"></div>';
       this.think = $('.think', this.el); this.thinkBody = $('.thinkbody', this.el); this.txt = $('.txt', this.el);
       this.raw = ''; this.reasoning = ''; this.pending = false;
-      this.typing = document.createElement('div'); this.typing.className = 'typing'; this.typing.innerHTML = '<i>●</i> pensando…';
-      this.el.appendChild(this.typing);
+      this.typing = null; this.t0 = Date.now(); this.iv = null;
+      if (live) {                                   // resposta ao vivo: mostra há quanto tempo a IA está pensando
+        this.typing = document.createElement('div'); this.typing.className = 'typing';
+        this.typing.innerHTML = '<i>●</i> <span class="lbl">pensando…</span> <span class="clock">0s</span>';
+        this.lbl = $('.lbl', this.typing); this.clock = $('.clock', this.typing);
+        this.el.appendChild(this.typing);
+        this.iv = setInterval(() => { this.clock.textContent = fmtSecs(Date.now() - this.t0); }, 500);
+      }
       msgs.appendChild(this.el);
     }
+    stopClock() { if (this.iv) { clearInterval(this.iv); this.iv = null; } if (this.typing) { this.typing.remove(); this.typing = null; } }
     addText(t) { this.raw += t; this.schedule(); }
     addReasoning(t) { this.reasoning += t; this.schedule(); }
     set(raw) { this.raw = raw; this.render(); }
@@ -301,20 +309,21 @@
       requestAnimationFrame(() => { this.pending = false; this.render(); scrollDown(); });
     }
     render() {
-      if (this.typing) { this.typing.remove(); this.typing = null; }
+      if (this.typing && (this.raw.trim() || this.reasoning)) this.lbl.textContent = this.raw.trim() ? 'escrevendo…' : 'raciocinando…';
       const { think, body } = splitThink(this.raw);
       const rs = [this.reasoning, think].filter(Boolean).join('\n').trim();
       if (rs) { this.think.hidden = false; this.thinkBody.textContent = rs; }
       this.txt.innerHTML = md(body);
     }
     finish() {
-      this.render();
+      const took = this.iv ? Date.now() - this.t0 : 0;
+      this.stopClock(); this.render();
       if (!this.raw.trim()) return;
       const a = document.createElement('div'); a.className = 'actions';
-      a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>';
+      a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took ? `<span class="took">levou ${fmtSecs(took)}</span>` : '');
       this.el.appendChild(a);
     }
-    remove() { this.el.remove(); }
+    remove() { this.stopClock(); this.el.remove(); }
   }
   function copyText(text, done) {
     const fallback = () => {
@@ -585,7 +594,7 @@
     chat.model = S.model;
     await persistChat();
     const userEl = addUser(text);
-    const view = new AsstView();
+    const view = new AsstView(true);
     scrollDown(true);
     inp.value = ''; inp.style.height = 'auto';
     setStreaming(true);
