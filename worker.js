@@ -1,5 +1,5 @@
-// Repassador "burro" para a NVIDIA, só para navegadores que não conseguem falar direto (CORS).
-// Não grava nada, não registra conteúdo nem chave; a chave vem no pedido, é usada e esquecida.
+// Kodi na Cloudflare Workers: o site é estático (pasta public/); este arquivo só trata
+// /api/config, /api/local e o repasse /relay/v1/*. Não grava nada e não registra conteúdo nem chave.
 const BASE = 'https://integrate.api.nvidia.com/v1';
 const ALLOWED = new Set(['GET /models', 'POST /chat/completions']);
 const AUTH_RE = /^Bearer [\w.\-]{20,400}$/;
@@ -13,9 +13,8 @@ async function safeEqual(a, b) {
   return d === 0;
 }
 
-export async function onRequest({ request, env, params }) {
+async function relay(request, env, sub) {
   if (env.RELAY_DISABLED === '1') return json(404, { error: 'O repasse pelo servidor está desativado.' });
-  const sub = '/' + [].concat(params.path || []).join('/');
   if (!ALLOWED.has(`${request.method} ${sub}`)) return json(404, { error: 'Caminho não permitido.' });
   const origin = request.headers.get('origin');
   if (origin && new URL(origin).host !== new URL(request.url).host) return json(403, { error: 'Origem não permitida.' });
@@ -44,3 +43,25 @@ export async function onRequest({ request, env, params }) {
     'Content-Type': up.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store',
   } });
 }
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const p = url.pathname;
+    if (p === '/api/config' && request.method === 'GET') {
+      return json(200, {
+        appName: 'Kodi',
+        defaultModel: env.DEFAULT_MODEL || 'meta/llama-3.3-70b-instruct',
+        systemPrompt: 'Você é um assistente prestativo. Responda no mesmo idioma do usuário, de forma clara e direta.',
+        maxTokens: 4096, maxContextChars: 48000, maxMessageChars: 20000,
+        nvidiaBaseUrl: BASE,
+        relayEnabled: env.RELAY_DISABLED !== '1',
+        accessRequired: !!env.ACCESS_CODE,
+      });
+    }
+    if (p === '/api/local' && request.method === 'GET') return json(200, { code: false });   // modo Claude Code só existe no computador de quem instala
+    if (p.startsWith('/relay/v1/')) return relay(request, env, p.slice('/relay/v1'.length));
+    if (p.startsWith('/api/')) return json(404, { error: 'Não encontrado.' });
+    return env.ASSETS.fetch(request);
+  },
+};

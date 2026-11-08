@@ -44,7 +44,7 @@ O Kodi é um aplicativo web de conversas com IA, feito para ser usado por mim e 
 
 ```
 public/      o site (HTML, CSS, JS, ícones, manifesto)
-functions/   repasse e configuração na Cloudflare Pages
+worker.js    repasse e configuração na Cloudflare Workers
 server.js    versão local em Node (inclui a aba Claude Code)
 lib/         módulos da versão local
 ```
