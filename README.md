@@ -36,7 +36,9 @@ O Kodi é um aplicativo web de conversas com IA, feito para ser usado por mim e 
 
 ## Tecnologias
 
-JavaScript puro (sem frameworks nem dependências), Node.js para a versão local, Cloudflare Pages e Pages Functions para a versão hospedada, IndexedDB para os dados e API compatível com OpenAI da NVIDIA.
+<p>
+  <img src="https://skillicons.dev/icons?i=html,css,js,nodejs,cloudflare" alt="Tecnologias do projeto">
+</p>
 
 ## Estrutura
 
