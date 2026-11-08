@@ -166,7 +166,7 @@
     const s = res.status;
     if (j && j.code === 'access') return friendly('O código de acesso do servidor está incorreto.');
     if (s === 401 || s === 403) return friendly('A chave da NVIDIA é inválida, expirou ou não tem acesso a este modelo. Confira em Configurações.');
-    if (s === 404) return friendly('Esse modelo não está disponível para a sua conta. Escolha outro modelo.');
+    if (s === 404) return friendly(`O modelo ${S.model} não está disponível para a sua conta. Escolha outro no seletor lá em cima.`);
     if (s === 413) return friendly('Mensagem grande demais.');
     if (s === 429) return friendly('Você atingiu o limite de uso. Espere um pouco e tente de novo.');
     if (s >= 500) return friendly(S.conn === 'relay' && j && j.error ? j.error : `A NVIDIA está com problemas agora (erro ${s}). Tente de novo em instantes.`);
@@ -365,10 +365,16 @@
     $('#cwdLabel').textContent = cwd ? cwd.replace(/^\/home\/[^/]+/, '~') : '';
     document.title = (title && title !== 'Nova conversa' && title !== 'Nova sessão' ? title + ' · ' : '') + S.appName;
   }
+  // Modelos que costumam responder bem, em ordem de preferência (o primeiro que existir na conta é usado).
+  const PREFER = [/llama-3\.3-70b/, /llama-3\.1-70b/, /llama-3\.1-405b/, /deepseek-v3/, /gpt-oss-120b/, /qwen.*(235b|72b|coder)/, /mistral-large/, /llama-3\.1-8b/];
+  function bestModel(list) {
+    for (const re of PREFER) { const m = list.find(id => re.test(id)); if (m) return m; }
+    return list[0];
+  }
   function fillModels(list) {
     const sel = $('#model');
     const cur = S.model || cfg.defaultModel;
-    const pick = !list.length || list.includes(cur) ? cur : (list.includes(cfg.defaultModel) ? cfg.defaultModel : list[0]);
+    const pick = !list.length || list.includes(cur) ? cur : bestModel(list);
     const ids = [...new Set([pick, ...list])];
     sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
     sel.value = pick; S.model = pick;
@@ -590,6 +596,7 @@
     if (got) {
       S.messages.push({ role: 'assistant', content: got, t: Date.now(), model: S.model });
       view.finish();
+      Store.setMeta('model', S.model).catch(() => {});
     } else {                                         // nada foi gerado: desfaz a mensagem e devolve o texto à caixa
       S.messages.pop(); userEl.remove(); view.remove();
       inp.value = text; inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 220) + 'px';
