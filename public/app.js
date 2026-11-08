@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.1.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.2.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -167,7 +167,7 @@
     const s = res.status;
     if (j && j.code === 'access') return friendly('O código de acesso do servidor está incorreto.');
     if (s === 401 || s === 403) return friendly('A chave da NVIDIA é inválida, expirou ou não tem acesso a este modelo. Confira em Configurações.');
-    if (s === 404) return friendly(`O modelo ${S.model} não está disponível para a sua conta. Escolha outro no seletor lá em cima.`);
+    if (s === 404) return friendly(`O modelo ${S.model} não está disponível para a sua conta. Escolha outro no seletor lá em cima.`, 'model404');
     if (s === 413) return friendly('Mensagem grande demais.');
     if (s === 429) return friendly('Você atingiu o limite de uso. Espere um pouco e tente de novo.');
     if (s >= 500) return friendly(S.conn === 'relay' && j && j.error ? j.error : `A NVIDIA está com problemas agora (erro ${s}). Tente de novo em instantes.`);
@@ -371,6 +371,12 @@
   function bestModel(list) {
     for (const re of PREFER) { const m = list.find(id => re.test(id)); if (m) return m; }
     return list[0];
+  }
+  // Ordem para tentar: o escolhido primeiro, depois os preferidos, depois o resto da lista.
+  function modelCandidates() {
+    const rest = [];
+    for (const re of PREFER) for (const id of S.models) if (re.test(id)) rest.push(id);
+    return [...new Set([S.model, ...rest, ...S.models])];
   }
   function fillModels(list) {
     const sel = $('#model');
@@ -585,14 +591,27 @@
     setStreaming(true);
     const ac = new AbortController(); S.abort = ac;
     let got = '', failed = null;
+    const tried = []; const first = S.model;
     try {
-      for await (const ev of nvStream({ model: S.model, messages: buildContext(S.messages), signal: ac.signal })) {
-        if (ev.type === 'd') { got += ev.text; view.addText(ev.text); } else view.addReasoning(ev.text);
+      // Se o modelo escolhido não existir para a conta (404), tenta outros automaticamente até achar um que responda.
+      for (const m of modelCandidates().slice(0, 8)) {
+        S.model = m; tried.push(m);
+        try {
+          for await (const ev of nvStream({ model: m, messages: buildContext(S.messages), signal: ac.signal })) {
+            if (ev.type === 'd') { got += ev.text; view.addText(ev.text); } else view.addReasoning(ev.text);
+          }
+          break;
+        } catch (e) {
+          if (e.code === 'model404' && !got && !ac.signal.aborted) continue;
+          throw e;
+        }
       }
     } catch (e) {
-      failed = e.friendly ? e.message : 'Erro inesperado: ' + (e && e.message ? e.message : e);
+      failed = e.code === 'model404' && tried.length > 1 ? `Tentei ${tried.length} modelos e nenhum está disponível para a sua conta. Escolha um no seletor lá em cima.` : e.friendly ? e.message : 'Erro inesperado: ' + (e && e.message ? e.message : e);
       if (!e.friendly) console.error(e);
     } finally { setStreaming(false); S.abort = null; }
+    if (!got) S.model = first;
+    else if (S.model !== first) { fillModels(S.models); toast(`O modelo ${first} não está disponível; usei ${S.model}.`); }
 
     if (got) {
       S.messages.push({ role: 'assistant', content: got, t: Date.now(), model: S.model });
