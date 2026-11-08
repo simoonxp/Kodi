@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#191919">
+<meta name="color-scheme" content="dark">
+<title>Kodi</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div id="app">
+  <aside id="side" aria-label="Conversas">
+    <div class="side-top">
+      <div class="brand">
+        <img src="/icon.svg" alt="" width="26" height="26"><span id="brandName">Kodi</span>
+        <button class="icon only-mobile" id="btnCloseMenu" aria-label="Fechar menu">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <button class="btn-new" id="newChat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nova conversa</button>
+      <div id="modeTabs" class="tabs" hidden>
+        <button data-mode="chat" class="on">Conversas</button>
+        <button data-mode="code">Claude Code</button>
+      </div>
+      <select id="folder" class="field" hidden aria-label="Pasta de trabalho"></select>
+      <input id="search" class="field" placeholder="Procurar conversas…" aria-label="Procurar conversas" autocomplete="off">
+    </div>
+    <div id="list"></div>
+    <div class="side-foot">
+      <div class="credit">Feito por Felipe Simon</div>
+      <button id="btnSettings" class="userbtn" aria-label="Configurações">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg>
+        <span>Configurações</span>
+      </button>
+    </div>
+  </aside>
+  <div id="scrim"></div>
+
+  <section id="main">
+    <header id="head">
+      <button class="icon only-mobile" id="btnMenu" aria-label="Abrir menu">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <span class="title" id="title">Nova conversa</span>
+      <span class="cwd" id="cwdLabel"></span>
+      <select id="model" class="field" aria-label="Modelo de IA"></select>
+    </header>
+    <div id="scroll"><div id="msgs"></div></div>
+    <div id="comp">
+      <div id="box">
+        <textarea id="inp" rows="1" placeholder="Escreva sua mensagem…" aria-label="Mensagem"></textarea>
+        <button id="send" aria-label="Enviar" title="Enviar"><svg viewBox="0 0 24 24"><path d="M12 19V6M6 11.5l6-6 6 6"/></svg></button>
+      </div>
+      <div id="hint"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ CONFIGURAÇÕES ============ -->
+<dialog id="dlgSettings">
+  <div class="dlg-head"><h2>Configurações</h2><button class="icon" data-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="dlg-body">
+    <section>
+      <h3>Sua chave da NVIDIA</h3>
+      <p id="keyStatus" class="muted"></p>
+      <input id="keyInput" type="password" class="field" placeholder="Cole aqui a chave (nvapi-…)" autocomplete="off" spellcheck="false">
+      <div class="row">
+        <button class="primary" id="keySave">Salvar chave</button>
+        <button class="ghost danger" id="keyDel" hidden>Remover</button>
+      </div>
+      <div class="msg" id="keyMsg" role="status"></div>
+      <details class="howto">
+        <summary>Como conseguir uma chave grátis</summary>
+        <ol>
+          <li>Entre em <a href="https://build.nvidia.com/" target="_blank" rel="noopener noreferrer">build.nvidia.com</a> e crie uma conta (é gratuita; a NVIDIA pode pedir verificação por telefone).</li>
+          <li>Abra qualquer modelo e procure o botão de gerar a chave de API (<em>API Key</em>), ou o menu do seu perfil.</li>
+          <li>Copie a chave, que começa com <code>nvapi-</code>, e cole aqui.</li>
+        </ol>
+        <p class="muted">O uso é contado na sua própria conta da NVIDIA.</p>
+      </details>
+    </section>
+    <section>
+      <h3>Como as mensagens viajam</h3>
+      <p id="connStatus" class="muted"></p>
+      <div class="row"><button class="ghost" id="connTest">Testar de novo</button></div>
+      <div class="msg" id="connMsg" role="status"></div>
+    </section>
+    <section>
+      <h3>Seus dados</h3>
+      <p class="muted">Suas conversas e sua chave ficam <b>só neste aparelho</b>, dentro do navegador. Não existe conta nem cópia em nenhum servidor, e ninguém, nem quem hospeda o app, consegue ver o que você guarda aqui. Se você limpar os dados do navegador ou trocar de aparelho, as conversas somem. Por isso, faça backup de vez em quando.</p>
+      <div class="row">
+        <button class="ghost" id="btnBackup">Fazer backup</button>
+        <button class="ghost" id="btnRestore">Restaurar backup</button>
+        <input type="file" id="fileRestore" accept="application/json,.json" hidden>
+      </div>
+      <p class="muted" id="storeWarn" hidden></p>
+      <div class="msg" id="dataMsg" role="status"></div>
+      <div class="row"><button class="ghost danger" id="btnWipe">Apagar tudo deste aparelho</button></div>
+    </section>
+    <section id="installBox" hidden>
+      <h3>Instalar como aplicativo</h3>
+      <p class="muted" id="installText"></p>
+      <div class="row"><button class="ghost" id="btnInstall" hidden>Instalar agora</button></div>
+    </section>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/app.js" defer></script>
+</body>
+</html>

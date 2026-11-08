@@ -1,0 +1,13 @@
+{
+  "appName": "Kodi",
+  "port": 3434,
+  "defaultModel": "meta/llama-3.3-70b-instruct",
+  "accessCode": "",
+  "code": {
+    "enabled": true,
+    "command": "PATH=$HOME/.local/bin:$PATH fcc-claude",
+    "shell": "bash",
+    "defaultCwd": "~/projetos/teste-claude",
+    "permissionMode": "acceptEdits"
+  }
+}
