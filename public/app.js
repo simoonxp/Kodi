@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.5.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.6.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -187,7 +187,7 @@
     let idle;
     const bump = ms => { clearTimeout(idle); idle = setTimeout(() => ac.abort(), ms); };
     try {
-      bump(45000);
+      bump(90000);
       const res = await nvFetch('/chat/completions', { method: 'POST', body: { model, messages, stream: true, max_tokens: cfg.maxTokens }, signal: ac.signal });
       if (!res.ok) throw await upstreamError(res);
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
@@ -376,7 +376,7 @@
     document.title = (title && title !== 'Nova conversa' && title !== 'Nova sessão' ? title + ' · ' : '') + S.appName;
   }
   // Modelos que costumam responder bem, em ordem de preferência (o primeiro que existir na conta é usado).
-  const PREFER = [/llama-3\.3-70b/, /llama-3\.1-70b/, /llama-3\.1-405b/, /deepseek-v3/, /gpt-oss-120b/, /qwen.*(235b|72b|coder)/, /mistral-large/, /llama-3\.1-8b/];
+  const PREFER = [/gemma-4/, /deepseek-v4/, /qwen3/, /kimi/, /glm/, /nemotron/, /llama-3\.3-70b/, /llama-3\.1-70b/, /llama-3\.1-405b/, /deepseek-v3/, /gpt-oss-120b/, /qwen.*(235b|72b|coder)/, /mistral-large/, /llama-3\.1-8b/];
   function bestModel(list) {
     for (const re of PREFER) { const m = list.find(id => re.test(id)); if (m) return m; }
     return list[0];
@@ -403,16 +403,16 @@
     probing = true;
     const ranked = [];
     for (const re of PREFER) for (const id of S.models) if (re.test(id)) ranked.push(id);
-    const cands = [...new Set([...ranked, ...S.models])].slice(0, 24);
+    const cands = [...new Set([...ranked, ...S.models])].slice(0, 80);
     const ok = []; const report = []; let done = 0, next = 0;
     const one = async m => {
-      const t0 = Date.now(); const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 20000);
+      const t0 = Date.now(); const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 40000);
       try {
         const r = await nvFetch('/chat/completions', { method: 'POST', body: { model: m, messages: [{ role: 'user', content: 'oi' }], max_tokens: 1, stream: false }, signal: ac.signal });
         if (r.ok) { ok.push({ id: m, ms: Date.now() - t0 }); report.push({ id: m, res: `ok, ${((Date.now() - t0) / 1000).toFixed(1)}s` }); }
         else report.push({ id: m, res: r.status === 404 ? 'não existe nesta conta' : `erro ${r.status}` });
         await r.text().catch(() => '');
-      } catch { report.push({ id: m, res: 'sem resposta em 20s' }); }
+      } catch { report.push({ id: m, res: 'sem resposta em 40s (lento ou fora do ar)' }); }
       clearTimeout(to); onProgress(++done, cands.length, ok.length);
     };
     const pool = async () => { while (next < cands.length) await one(cands[next++]); };
