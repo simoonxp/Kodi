@@ -191,3 +191,4 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .ver{font-size:11px;font-weight:500;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:8px;font-family:system-ui,sans-serif}
 .typing .clock,.took{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
 .took{margin-left:10px;align-self:center}
+.mlist{font:12.5px ui-monospace,Menlo,monospace;margin-top:8px;max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:3px}.okline{color:var(--accent)}.badline{color:var(--muted)}

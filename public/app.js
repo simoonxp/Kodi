@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.4.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.5.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -385,7 +385,7 @@
   function modelCandidates() {
     const rest = [];
     for (const re of PREFER) for (const id of S.models) if (re.test(id)) rest.push(id);
-    return [...new Set([S.model, ...S.good, ...rest, ...S.models])];
+    return S.good.length ? [...new Set([S.model, ...S.good])] : [...new Set([S.model, ...rest, ...S.models])];
   }
   function fillModels(list) {
     const sel = $('#model');
@@ -393,7 +393,7 @@
     const all = [...new Set([...S.good, ...list])];
     const pick = !all.length || all.includes(cur) ? cur : (S.good[0] || bestModel(list));
     const ids = [...new Set([pick, ...S.good, ...list])];
-    sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${S.good.includes(id) ? '✓ ' : ''}${esc(id)}</option>`).join('');
+    sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${S.good.includes(id) ? '✓ ' : ''}${esc(id)}</option>`).join('') + '<option value="__custom">Outro modelo (digitar o nome)…</option>';
     sel.value = pick; S.model = pick;
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
@@ -404,14 +404,15 @@
     const ranked = [];
     for (const re of PREFER) for (const id of S.models) if (re.test(id)) ranked.push(id);
     const cands = [...new Set([...ranked, ...S.models])].slice(0, 24);
-    const ok = []; let done = 0, next = 0;
+    const ok = []; const report = []; let done = 0, next = 0;
     const one = async m => {
       const t0 = Date.now(); const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 20000);
       try {
         const r = await nvFetch('/chat/completions', { method: 'POST', body: { model: m, messages: [{ role: 'user', content: 'oi' }], max_tokens: 1, stream: false }, signal: ac.signal });
-        if (r.ok) ok.push({ id: m, ms: Date.now() - t0 });
+        if (r.ok) { ok.push({ id: m, ms: Date.now() - t0 }); report.push({ id: m, res: `ok, ${((Date.now() - t0) / 1000).toFixed(1)}s` }); }
+        else report.push({ id: m, res: r.status === 404 ? 'não existe nesta conta' : `erro ${r.status}` });
         await r.text().catch(() => '');
-      } catch { /* sem resposta: modelo descartado */ }
+      } catch { report.push({ id: m, res: 'sem resposta em 20s' }); }
       clearTimeout(to); onProgress(++done, cands.length, ok.length);
     };
     const pool = async () => { while (next < cands.length) await one(cands[next++]); };
@@ -421,7 +422,8 @@
     Store.setMeta('good', S.good).catch(() => {});
     if (S.good.length && !S.good.includes(S.model)) S.model = S.good[0];
     fillModels(S.models);
-    return { tested: cands.length, ok };
+    S.report = report;
+    return { tested: cands.length, ok, report };
   }
   async function autoProbe(msg) {
     toast(msg);
@@ -434,7 +436,15 @@
     try { S.models = await nvModels(); fillModels(S.models); }
     catch (e) { fillModels(S.models); if (e.friendly) toast(e.message); }
   }
-  $('#model').addEventListener('change', e => { S.model = e.target.value; Store.setMeta('model', S.model).catch(() => {}); });
+  $('#model').addEventListener('change', e => {
+    if (e.target.value === '__custom') {
+      const id = (prompt('Digite o nome exato do modelo (ex.: meta/llama-3.1-8b-instruct):') || '').trim();
+      if (!/^[\w.\-]+\/[\w.\-:]+$/.test(id)) { fillModels(S.models); if (id) toast('Nome inválido. O formato é empresa/modelo.'); return; }
+      if (!S.models.includes(id)) S.models = [id, ...S.models];
+      S.model = id;
+    } else S.model = e.target.value;
+    fillModels(S.models); Store.setMeta('model', S.model).catch(() => {});
+  });
 
   // ---------- barra lateral ----------
   const ago = ms => {
@@ -845,6 +855,7 @@
   function openSettings() {
     closeDrawer(); refreshSettings(); updateInstallBox();
     ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg'].forEach(i => { $('#' + i).textContent = ''; });
+    if (S.report) showReport(S.report);
     $('#dlgSettings').showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -870,10 +881,18 @@
     } finally { b.disabled = false; }
   });
 
+  function showReport(rep) {
+    const box = $('#modelsList'); box.innerHTML = '';
+    for (const x of rep.slice().sort((a, b) => (b.res.startsWith('ok') - a.res.startsWith('ok')))) {
+      const d = document.createElement('div'); d.className = x.res.startsWith('ok') ? 'okline' : 'badline';
+      d.textContent = `${x.res.startsWith('ok') ? '✓' : '✗'} ${x.id} — ${x.res}`; box.appendChild(d);
+    }
+  }
   $('#modelsTest').addEventListener('click', async () => {
     const b = $('#modelsTest'); b.disabled = true; $('#modelsMsg').textContent = '';
     try {
       const r = await probeModels((d, n, k) => say('modelsMsg', `Testando… ${d} de ${n} (${k} respondendo)`, true));
+      if (r) showReport(r.report);
       if (!r) say('modelsMsg', 'Cadastre a chave primeiro (ou aguarde o teste que já está rodando).', false);
       else if (r.ok.length) say('modelsMsg', `${r.ok.length} modelo(s) respondem. Marcados com ✓ no seletor; o mais rápido foi escolhido: ${S.model}.`, true);
       else say('modelsMsg', 'Nenhum modelo respondeu agora. Tente de novo mais tarde.', false);
