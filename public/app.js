@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.6.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.7.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -19,7 +19,7 @@
   let cfg = {};
   const S = {
     appName: 'IA', mode: 'chat', codeMode: false, codeCfg: null,
-    key: null, conn: null, access: '', model: '', models: [], good: [],
+    key: null, conn: null, access: '', model: '', models: [], good: [], bad: [],
     chats: [], chat: null, messages: [], codeSessions: [],
     current: { id: null, project: null, cwd: null },
     search: '', streaming: false, abort: null, deferred: null,
@@ -403,14 +403,15 @@
     probing = true;
     const ranked = [];
     for (const re of PREFER) for (const id of S.models) if (re.test(id)) ranked.push(id);
-    const cands = [...new Set([...ranked, ...S.models])].slice(0, 80);
+    const cands = [...new Set([...ranked, ...S.models])].filter(id => !S.bad.includes(id)).slice(0, 80);   // pula os que já deram "não existe"
+    const newBad = [];
     const ok = []; const report = []; let done = 0, next = 0;
     const one = async m => {
       const t0 = Date.now(); const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 40000);
       try {
         const r = await nvFetch('/chat/completions', { method: 'POST', body: { model: m, messages: [{ role: 'user', content: 'oi' }], max_tokens: 1, stream: false }, signal: ac.signal });
         if (r.ok) { ok.push({ id: m, ms: Date.now() - t0 }); report.push({ id: m, res: `ok, ${((Date.now() - t0) / 1000).toFixed(1)}s` }); }
-        else report.push({ id: m, res: r.status === 404 ? 'não existe nesta conta' : `erro ${r.status}` });
+        else { if (r.status === 404) newBad.push(m); report.push({ id: m, res: r.status === 404 ? 'não existe nesta conta' : `erro ${r.status}` }); }
         await r.text().catch(() => '');
       } catch { report.push({ id: m, res: 'sem resposta em 40s (lento ou fora do ar)' }); }
       clearTimeout(to); onProgress(++done, cands.length, ok.length);
@@ -419,6 +420,7 @@
     try { await Promise.all([pool(), pool(), pool(), pool(), pool()]); } finally { probing = false; }
     ok.sort((a, b) => a.ms - b.ms);
     S.good = ok.map(x => x.id);
+    S.bad = [...new Set([...S.bad, ...newBad])]; Store.setMeta('bad', S.bad).catch(() => {});
     Store.setMeta('good', S.good).catch(() => {});
     if (S.good.length && !S.good.includes(S.model)) S.model = S.good[0];
     fillModels(S.models);
@@ -968,7 +970,7 @@
     await Store.init();
     try {
       S.key = await Store.getMeta('key'); S.conn = await Store.getMeta('conn');
-      S.access = (await Store.getMeta('access')) || ''; S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || [];
+      S.access = (await Store.getMeta('access')) || ''; S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || []; S.bad = (await Store.getMeta('bad')) || [];
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
