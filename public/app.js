@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.7.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.8.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -376,7 +376,8 @@
     document.title = (title && title !== 'Nova conversa' && title !== 'Nova sessão' ? title + ' · ' : '') + S.appName;
   }
   // Modelos que costumam responder bem, em ordem de preferência (o primeiro que existir na conta é usado).
-  const PREFER = [/gemma-4/, /deepseek-v4/, /qwen3/, /kimi/, /glm/, /nemotron/, /llama-3\.3-70b/, /llama-3\.1-70b/, /llama-3\.1-405b/, /deepseek-v3/, /gpt-oss-120b/, /qwen.*(235b|72b|coder)/, /mistral-large/, /llama-3\.1-8b/];
+  const PREFER = [/nemotron-3-ultra/, /nemotron-3\.5-super/, /minimax-m3/, /nemotron-3\.5-lightning/, /gemma-4/, /deepseek-v4/, /qwen3/, /kimi/, /glm/, /nemotron/, /llama-3\.3-70b/, /llama-3\.1-70b/, /llama-3\.1-405b/, /deepseek-v3/, /gpt-oss-120b/, /qwen.*(235b|72b|coder)/, /mistral-large/, /llama-3\.1-8b/];
+  const rankOf = id => { const i = PREFER.findIndex(re => re.test(id)); return i < 0 ? 99 : i; };
   function bestModel(list) {
     for (const re of PREFER) { const m = list.find(id => re.test(id)); if (m) return m; }
     return list[0];
@@ -418,7 +419,7 @@
     };
     const pool = async () => { while (next < cands.length) await one(cands[next++]); };
     try { await Promise.all([pool(), pool(), pool(), pool(), pool()]); } finally { probing = false; }
-    ok.sort((a, b) => a.ms - b.ms);
+    ok.sort((a, b) => rankOf(a.id) - rankOf(b.id) || a.ms - b.ms);   // melhor qualidade primeiro; desempate pela velocidade
     S.good = ok.map(x => x.id);
     S.bad = [...new Set([...S.bad, ...newBad])]; Store.setMeta('bad', S.bad).catch(() => {});
     Store.setMeta('good', S.good).catch(() => {});
