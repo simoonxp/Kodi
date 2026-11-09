@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.10.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.11.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -249,7 +249,8 @@
   }
   async function refreshUsageBadge() {
     const u = await getUsage(); const t = u.days[dayKey()];
-    $('#usageToday').textContent = t ? `Hoje: ${fmtTok(t.p + t.c)} tokens` : 'Hoje: 0 tokens';
+    $('#usageTokens').textContent = t ? `Hoje: ${fmtTok(t.p + t.c)} tokens` : 'Hoje: 0 tokens';
+    refreshQuota();
   }
   function usageLabel(us) { return us ? `${us.est ? '~' : ''}${fmtTok(us.p + us.c)} tokens (${fmtTok(us.p)} enviados + ${fmtTok(us.c)} recebidos)` : ''; }
   async function renderUsage() {
@@ -262,6 +263,32 @@
     const models = Object.entries(u.models).sort((a, b) => (b[1].p + b[1].c) - (a[1].p + a[1].c)).slice(0, 6);
     $('#usageBox').innerHTML = `<table class="utab"><thead><tr><th></th><th>Total</th><th>Enviados</th><th>Recebidos</th><th>Msgs</th></tr></thead><tbody>${row('Hoje', today)}${row('7 dias', week)}${row('Tudo', all)}</tbody></table>` +
       (models.length ? '<div class="muted small" style="margin-top:8px">Por modelo (total):</div>' + models.map(([id, x]) => `<div class="mline"><span>${esc(id)}</span><b>${fmtTok(x.p + x.c)}</b></div>`).join('') : '<p class="muted small">Ainda sem uso registrado.</p>');
+  }
+
+
+  // Cota estimada: a NVIDIA conta CRÉDITOS por pedido (~1 por mensagem) e não informa o saldo por API.
+  // O Kodi soma os pedidos feitos aqui neste mês; o usuário pode corrigir com o saldo que vê em build.nvidia.com.
+  const monthKey = () => dayKey().slice(0, 7);
+  async function getQuota() {
+    let q = null; try { q = await Store.getMeta('quota'); } catch { /* sem dados */ }
+    q = q || { limit: 1000, adj: 0, month: monthKey() };
+    if (q.month !== monthKey()) q = { limit: q.limit || 1000, adj: 0, month: monthKey() };
+    return q;
+  }
+  async function quotaState() {
+    const u = await getUsage(); const q = await getQuota(); const mk = monthKey();
+    const mine = Object.entries(u.days).filter(([k]) => k.startsWith(mk)).reduce((n, [, d]) => n + d.n + (d.pr || 0), 0);
+    const used = Math.max(0, mine + q.adj);
+    const left = Math.max(0, q.limit - used);
+    const pct = q.limit ? Math.min(100, Math.round(used / q.limit * 100)) : 0;
+    return { q, used, left, pct, mine };
+  }
+  const quotaColor = pct => pct >= 90 ? 'var(--err)' : pct >= 70 ? '#e0b04a' : 'var(--accent)';
+  async function refreshQuota() {
+    const { q, used, left, pct } = await quotaState();
+    const fill = $('#qfill'); fill.style.width = pct + '%'; fill.style.background = quotaColor(pct);
+    $('#qtext').textContent = `${pct}% usado · ~${left} de ${q.limit} créditos`;
+    const big = $('#qbigfill'); if (big) { big.style.width = pct + '%'; big.style.background = quotaColor(pct); $('#qbigtext').textContent = `${pct}% usado · ~${left} créditos restantes de ${q.limit} (usados: ${used})`; }
   }
 
   // ---------- markdown ----------
@@ -467,6 +494,7 @@
     if (S.good.length && !S.good.includes(S.model)) S.model = S.good[0];
     fillModels(S.models);
     S.report = report;
+    try { const u = await getUsage(); const d = (u.days[dayKey()] = u.days[dayKey()] || { p: 0, c: 0, n: 0, est: 0 }); d.pr = (d.pr || 0) + ok.length; await Store.setMeta('usage', u); refreshUsageBadge(); } catch { /* ignora */ }
     return { tested: cands.length, ok, report };
   }
   async function autoProbe(msg) {
@@ -903,9 +931,9 @@
   }
   function openSettings() {
     closeDrawer(); refreshSettings(); updateInstallBox();
-    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg'].forEach(i => { $('#' + i).textContent = ''; });
+    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg', 'qMsg'].forEach(i => { $('#' + i).textContent = ''; });
     if (S.report) showReport(S.report);
-    renderUsage();
+    renderUsage(); loadQuotaInputs();
     $('#dlgSettings').showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -949,9 +977,22 @@
     } finally { b.disabled = false; }
   });
 
+  async function loadQuotaInputs() { const { q } = await quotaState(); $('#qLimit').value = q.limit; $('#qLeft').value = ''; refreshQuota(); }
+  $('#qApply').addEventListener('click', async () => {
+    const limit = Math.round(Number($('#qLimit').value)); const leftTxt = $('#qLeft').value.trim();
+    if (!(limit > 0 && limit < 10000000)) { say('qMsg', 'Informe um limite válido (ex.: 1000).', false); return; }
+    const { mine } = await quotaState();
+    const q = { limit, adj: 0, month: monthKey() };
+    if (leftTxt !== '') {
+      const left = Math.round(Number(leftTxt));
+      if (!(left >= 0 && left <= limit)) { say('qMsg', 'O saldo atual precisa estar entre 0 e o limite.', false); return; }
+      q.adj = (limit - left) - mine;                // ajusta para bater com o saldo que a NVIDIA mostra
+    }
+    await Store.setMeta('quota', q); await loadQuotaInputs(); say('qMsg', 'Cota atualizada.', true);
+  });
   $('#usageReset').addEventListener('click', async () => {
     if (!confirm('Zerar os contadores de tokens deste aparelho?')) return;
-    await Store.delMeta('usage'); renderUsage(); refreshUsageBadge();
+    await Store.delMeta('usage'); await Store.delMeta('quota'); renderUsage(); loadQuotaInputs(); refreshUsageBadge();
   });
   $('#usageToday').addEventListener('click', openSettings);
 

@@ -31,7 +31,7 @@
       <input id="search" class="field" placeholder="Procurar conversas…" aria-label="Procurar conversas" autocomplete="off">
     </div>
     <div id="list"></div>
-    <button class="usage" id="usageToday" type="button" title="Uso de tokens">Hoje: 0 tokens</button>
+    <button class="usage" id="usageToday" type="button" title="Créditos e tokens"><div class="qbar"><i id="qfill"></i></div><div id="qtext">…</div><div id="usageTokens" class="qsub">Hoje: 0 tokens</div></button>
     <div class="side-foot">
       <div class="credit">Feito por Felipe Simon</div>
       <button id="btnSettings" class="userbtn" aria-label="Configurações">
@@ -92,8 +92,15 @@
       <div class="msg" id="connMsg" role="status"></div>
     </section>
     <section>
-      <h3>Uso de tokens</h3>
-      <p class="muted">Conta só o que passou pelo Kodi neste aparelho. Não é o saldo da sua conta na NVIDIA (esse você vê em build.nvidia.com). Quando a NVIDIA não informa o número, o Kodi estima e marca com <b>~</b>.</p>
+      <h3>Créditos e tokens</h3>
+      <div class="qbar big"><i id="qbigfill"></i></div>
+      <div id="qbigtext" class="qtext"></div>
+      <p class="muted small">A conta gratuita da NVIDIA dá cerca de 1.000 créditos por mês, contados por pedido (aprox. 1 por mensagem), e não existe forma de o Kodi consultar o saldo real. Esta barra é uma <b>estimativa</b> feita contando o que você usou aqui. Para acertar, olhe seu saldo em <a href="https://build.nvidia.com/" target="_blank" rel="noopener noreferrer">build.nvidia.com</a> e digite abaixo.</p>
+      <div class="row qrow"><label>Limite do mês <input id="qLimit" class="field" type="number" min="1" inputmode="numeric"></label><label>Saldo atual na NVIDIA <input id="qLeft" class="field" type="number" min="0" inputmode="numeric" placeholder="opcional"></label></div>
+      <div class="row"><button class="ghost" id="qApply">Atualizar cota</button></div>
+      <div class="msg" id="qMsg" role="status"></div>
+      <h3 style="margin-top:18px">Tokens</h3>
+      <p class="muted small">Tokens são o tamanho do texto enviado e recebido. Quando a NVIDIA não informa o número, o Kodi estima e marca com <b>~</b>. Testar modelos também gasta créditos (1 por modelo que responde).</p>
       <div id="usageBox"></div>
       <div class="row"><button class="ghost" id="usageReset">Zerar contadores</button></div>
     </section>
