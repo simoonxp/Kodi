@@ -31,6 +31,7 @@
       <input id="search" class="field" placeholder="Procurar conversas…" aria-label="Procurar conversas" autocomplete="off">
     </div>
     <div id="list"></div>
+    <button class="usage" id="usageToday" type="button" title="Uso de tokens">Hoje: 0 tokens</button>
     <div class="side-foot">
       <div class="credit">Feito por Felipe Simon</div>
       <button id="btnSettings" class="userbtn" aria-label="Configurações">
@@ -89,6 +90,12 @@
       <p id="connStatus" class="muted"></p>
       <div class="row"><button class="ghost" id="connTest">Testar de novo</button></div>
       <div class="msg" id="connMsg" role="status"></div>
+    </section>
+    <section>
+      <h3>Uso de tokens</h3>
+      <p class="muted">Conta só o que passou pelo Kodi neste aparelho. Não é o saldo da sua conta na NVIDIA (esse você vê em build.nvidia.com). Quando a NVIDIA não informa o número, o Kodi estima e marca com <b>~</b>.</p>
+      <div id="usageBox"></div>
+      <div class="row"><button class="ghost" id="usageReset">Zerar contadores</button></div>
     </section>
     <section>
       <h3>Modelos de IA</h3>

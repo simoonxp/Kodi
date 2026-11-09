@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.9.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.10.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -188,7 +188,12 @@
     const bump = ms => { clearTimeout(idle); idle = setTimeout(() => ac.abort(), ms); };
     try {
       bump(90000);
-      const res = await nvFetch('/chat/completions', { method: 'POST', body: { model, messages, stream: true, max_tokens: cfg.maxTokens }, signal: ac.signal });
+      const body = { model, messages, stream: true, max_tokens: cfg.maxTokens, stream_options: { include_usage: true } };
+      let res = await nvFetch('/chat/completions', { method: 'POST', body, signal: ac.signal });
+      if (res.status === 400) {                     // alguns modelos não aceitam stream_options: tenta de novo sem pedir o uso
+        delete body.stream_options;
+        res = await nvFetch('/chat/completions', { method: 'POST', body, signal: ac.signal });
+      }
       if (!res.ok) throw await upstreamError(res);
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
       for (;;) {
@@ -204,6 +209,7 @@
           if (data === '[DONE]') return;
           let j; try { j = JSON.parse(data); } catch { continue; }
           if (j.error) throw friendly('A NVIDIA devolveu um erro: ' + String(j.error.message || j.error.code || 'desconhecido').slice(0, 200));
+          if (j.usage && typeof j.usage.total_tokens === 'number') yield { type: 'u', usage: j.usage };
           const d = j.choices && j.choices[0] && j.choices[0].delta;
           if (!d) continue;
           const r = d.reasoning_content || d.reasoning;
@@ -221,6 +227,41 @@
       clearTimeout(idle);
       if (signal) signal.removeEventListener('abort', onAbort);
     }
+  }
+
+
+  // ======================================================================
+  // Controle de tokens (só neste navegador; conta o que passou pelo Kodi, não o saldo da conta NVIDIA)
+  // ======================================================================
+  const fmtTok = n => n < 1000 ? String(Math.round(n)) : n < 1e6 ? (n / 1000).toFixed(n < 10000 ? 1 : 0).replace('.', ',') + ' mil' : (n / 1e6).toFixed(1).replace('.', ',') + ' mi';
+  const dayKey = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const estTokens = chars => Math.max(1, Math.round(chars / 3.6));
+  async function getUsage() { try { return (await Store.getMeta('usage')) || { days: {}, models: {} }; } catch { return { days: {}, models: {} }; } }
+  async function addUsage(model, p, c, est) {
+    const u = await getUsage();
+    const d = (u.days[dayKey()] = u.days[dayKey()] || { p: 0, c: 0, n: 0, est: 0 });
+    d.p += p; d.c += c; d.n += 1; if (est) d.est += 1;
+    const m = (u.models[model] = u.models[model] || { p: 0, c: 0, n: 0 });
+    m.p += p; m.c += c; m.n += 1;
+    const keep = Object.keys(u.days).sort().slice(-120); for (const k of Object.keys(u.days)) if (!keep.includes(k)) delete u.days[k];
+    try { await Store.setMeta('usage', u); } catch { /* sem espaço */ }
+    refreshUsageBadge();
+  }
+  async function refreshUsageBadge() {
+    const u = await getUsage(); const t = u.days[dayKey()];
+    $('#usageToday').textContent = t ? `Hoje: ${fmtTok(t.p + t.c)} tokens` : 'Hoje: 0 tokens';
+  }
+  function usageLabel(us) { return us ? `${us.est ? '~' : ''}${fmtTok(us.p + us.c)} tokens (${fmtTok(us.p)} enviados + ${fmtTok(us.c)} recebidos)` : ''; }
+  async function renderUsage() {
+    const u = await getUsage(); const days = Object.keys(u.days).sort();
+    const sum = keys => keys.reduce((a, k) => { const d = u.days[k]; a.p += d.p; a.c += d.c; a.n += d.n; return a; }, { p: 0, c: 0, n: 0 });
+    const today = sum([dayKey()].filter(k => u.days[k]));
+    const week = sum(days.filter(k => (Date.now() - new Date(k + 'T12:00:00').getTime()) < 7 * 864e5));
+    const all = sum(days);
+    const row = (name, x) => `<tr><td>${name}</td><td>${fmtTok(x.p + x.c)}</td><td>${fmtTok(x.p)}</td><td>${fmtTok(x.c)}</td><td>${x.n}</td></tr>`;
+    const models = Object.entries(u.models).sort((a, b) => (b[1].p + b[1].c) - (a[1].p + a[1].c)).slice(0, 6);
+    $('#usageBox').innerHTML = `<table class="utab"><thead><tr><th></th><th>Total</th><th>Enviados</th><th>Recebidos</th><th>Msgs</th></tr></thead><tbody>${row('Hoje', today)}${row('7 dias', week)}${row('Tudo', all)}</tbody></table>` +
+      (models.length ? '<div class="muted small" style="margin-top:8px">Por modelo (total):</div>' + models.map(([id, x]) => `<div class="mline"><span>${esc(id)}</span><b>${fmtTok(x.p + x.c)}</b></div>`).join('') : '<p class="muted small">Ainda sem uso registrado.</p>');
   }
 
   // ---------- markdown ----------
@@ -315,12 +356,12 @@
       if (rs) { this.think.hidden = false; this.thinkBody.textContent = rs; }
       this.txt.innerHTML = md(body);
     }
-    finish() {
+    finish(info = '') {
       const took = this.iv ? Date.now() - this.t0 : 0;
       this.stopClock(); this.render();
       if (!this.raw.trim()) return;
       const a = document.createElement('div'); a.className = 'actions';
-      a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took ? `<span class="took">levou ${fmtSecs(took)}</span>` : '');
+      a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took || info ? `<span class="took">${[took ? 'levou ' + fmtSecs(took) : '', info].filter(Boolean).join(' · ')}</span>` : '');
       this.el.appendChild(a);
     }
     remove() { this.stopClock(); this.el.remove(); }
@@ -593,7 +634,7 @@
     if (chat.model && (!S.models.length || S.models.includes(chat.model))) { S.model = chat.model; fillModels(S.models); }
     msgs.innerHTML = '';
     for (const m of S.messages) {
-      if (m.role === 'user') addUser(m.content); else { const v = new AsstView(); v.set(m.content); v.finish(); }
+      if (m.role === 'user') addUser(m.content); else { const v = new AsstView(); v.set(m.content); v.finish(usageLabel(m.usage)); }
     }
     scrollDown(true);
   }
@@ -646,15 +687,18 @@
     inp.value = ''; inp.style.height = 'auto';
     setStreaming(true);
     const ac = new AbortController(); S.abort = ac;
-    let got = '', failed = null, failCode = null;
+    let got = '', failed = null, failCode = null, usage = null, ctxChars = 0;
     const tried = []; const first = S.model;
     try {
       // Se o modelo escolhido não existir para a conta (404), tenta outros automaticamente até achar um que responda.
       for (const m of modelCandidates().slice(0, 8)) {
         S.model = m; tried.push(m);
         try {
-          for await (const ev of nvStream({ model: m, messages: buildContext(S.messages), signal: ac.signal })) {
-            if (ev.type === 'd') { got += ev.text; view.addText(ev.text); } else view.addReasoning(ev.text);
+          const ctx = buildContext(S.messages); ctxChars = ctx.reduce((n, x) => n + x.content.length, 0);
+          for await (const ev of nvStream({ model: m, messages: ctx, signal: ac.signal })) {
+            if (ev.type === 'd') { got += ev.text; view.addText(ev.text); }
+            else if (ev.type === 'u') usage = { p: Number(ev.usage.prompt_tokens) || 0, c: Number(ev.usage.completion_tokens) || 0 };
+            else view.addReasoning(ev.text);
           }
           break;
         } catch (e) {
@@ -671,8 +715,10 @@
     else if (S.model !== first) { fillModels(S.models); toast(`O modelo ${first} não está disponível; usei ${S.model}.`); }
 
     if (got) {
-      S.messages.push({ role: 'assistant', content: got, t: Date.now(), model: S.model });
-      view.finish();
+      if (!usage) usage = { p: estTokens(ctxChars), c: estTokens(got.length + view.reasoning.length), est: true };   // a NVIDIA não informou: estimativa
+      S.messages.push({ role: 'assistant', content: got, t: Date.now(), model: S.model, usage });
+      view.finish(usageLabel(usage));
+      addUsage(S.model, usage.p, usage.c, !!usage.est);
       Store.setMeta('model', S.model).catch(() => {});
     } else {                                         // nada foi gerado: desfaz a mensagem e devolve o texto à caixa
       S.messages.pop(); userEl.remove(); view.remove();
@@ -859,6 +905,7 @@
     closeDrawer(); refreshSettings(); updateInstallBox();
     ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg'].forEach(i => { $('#' + i).textContent = ''; });
     if (S.report) showReport(S.report);
+    renderUsage();
     $('#dlgSettings').showModal();
   }
   $('#btnSettings').addEventListener('click', openSettings);
@@ -901,6 +948,12 @@
       else say('modelsMsg', 'Nenhum modelo respondeu agora. Tente de novo mais tarde.', false);
     } finally { b.disabled = false; }
   });
+
+  $('#usageReset').addEventListener('click', async () => {
+    if (!confirm('Zerar os contadores de tokens deste aparelho?')) return;
+    await Store.delMeta('usage'); renderUsage(); refreshUsageBadge();
+  });
+  $('#usageToday').addEventListener('click', openSettings);
 
   // backup e restauração (a única forma de levar as conversas para outro aparelho)
   $('#btnBackup').addEventListener('click', async () => {
@@ -976,6 +1029,7 @@
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
     await loadChats();
+    refreshUsageBadge();
     newChat();
     if (S.key) {
       if (!S.conn) { const r = await detectConn(S.key); if (r.conn) { S.conn = r.conn; await Store.setMeta('conn', r.conn); updateComposer(); } }
