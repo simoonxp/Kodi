@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.11.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '1.12.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -252,7 +252,8 @@
     $('#usageTokens').textContent = t ? `Hoje: ${fmtTok(t.p + t.c)} tokens` : 'Hoje: 0 tokens';
     refreshQuota();
   }
-  function usageLabel(us) { return us ? `${us.est ? '~' : ''}${fmtTok(us.p + us.c)} tokens (${fmtTok(us.p)} enviados + ${fmtTok(us.c)} recebidos)` : ''; }
+  function usageLabel(us) { return us ? `${us.est ? '~' : ''}${fmtTok(us.p + us.c)} tokens` : ''; }
+  function usageTip(us) { return us ? `${us.est ? 'Estimado. ' : ''}${fmtTok(us.p)} tokens enviados + ${fmtTok(us.c)} recebidos` : ''; }
   async function renderUsage() {
     const u = await getUsage(); const days = Object.keys(u.days).sort();
     const sum = keys => keys.reduce((a, k) => { const d = u.days[k]; a.p += d.p; a.c += d.c; a.n += d.n; return a; }, { p: 0, c: 0, n: 0 });
@@ -286,9 +287,14 @@
   const quotaColor = pct => pct >= 90 ? 'var(--err)' : pct >= 70 ? '#e0b04a' : 'var(--accent)';
   async function refreshQuota() {
     const { q, used, left, pct } = await quotaState();
-    const fill = $('#qfill'); fill.style.width = pct + '%'; fill.style.background = quotaColor(pct);
-    $('#qtext').textContent = `${pct}% usado · ~${left} de ${q.limit} créditos`;
-    const big = $('#qbigfill'); if (big) { big.style.width = pct + '%'; big.style.background = quotaColor(pct); $('#qbigtext').textContent = `${pct}% usado · ~${left} créditos restantes de ${q.limit} (usados: ${used})`; }
+    const pctText = used > 0 && pct === 0 ? 'menos de 1%' : pct + '%';
+    const fill = $('#qfill'); fill.style.width = Math.max(pct, used > 0 ? 1 : 0) + '%'; fill.style.background = quotaColor(pct);
+    $('#qtext').textContent = `Restam ~${left} de ${q.limit} mensagens (${pctText} usado)`;
+    const big = $('#qbigfill');
+    if (big) {
+      big.style.width = Math.max(pct, used > 0 ? 1 : 0) + '%'; big.style.background = quotaColor(pct);
+      $('#qbigtext').textContent = `Você usou ${used} de ${q.limit} mensagens neste mês (${pctText}). Restam cerca de ${left}.`;
+    }
   }
 
   // ---------- markdown ----------
@@ -383,12 +389,12 @@
       if (rs) { this.think.hidden = false; this.thinkBody.textContent = rs; }
       this.txt.innerHTML = md(body);
     }
-    finish(info = '') {
+    finish(info = '', tip = '') {
       const took = this.iv ? Date.now() - this.t0 : 0;
       this.stopClock(); this.render();
       if (!this.raw.trim()) return;
       const a = document.createElement('div'); a.className = 'actions';
-      a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took || info ? `<span class="took">${[took ? 'levou ' + fmtSecs(took) : '', info].filter(Boolean).join(' · ')}</span>` : '');
+      a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took || info ? `<span class="took" title="${esc(tip)}">${[took ? fmtSecs(took) : '', info].filter(Boolean).join(' · ')}</span>` : '');
       this.el.appendChild(a);
     }
     remove() { this.stopClock(); this.el.remove(); }
@@ -662,7 +668,7 @@
     if (chat.model && (!S.models.length || S.models.includes(chat.model))) { S.model = chat.model; fillModels(S.models); }
     msgs.innerHTML = '';
     for (const m of S.messages) {
-      if (m.role === 'user') addUser(m.content); else { const v = new AsstView(); v.set(m.content); v.finish(usageLabel(m.usage)); }
+      if (m.role === 'user') addUser(m.content); else { const v = new AsstView(); v.set(m.content); v.finish(usageLabel(m.usage), usageTip(m.usage)); }
     }
     scrollDown(true);
   }
@@ -745,7 +751,7 @@
     if (got) {
       if (!usage) usage = { p: estTokens(ctxChars), c: estTokens(got.length + view.reasoning.length), est: true };   // a NVIDIA não informou: estimativa
       S.messages.push({ role: 'assistant', content: got, t: Date.now(), model: S.model, usage });
-      view.finish(usageLabel(usage));
+      view.finish(usageLabel(usage), usageTip(usage));
       addUsage(S.model, usage.p, usage.c, !!usage.est);
       Store.setMeta('model', S.model).catch(() => {});
     } else {                                         // nada foi gerado: desfaz a mensagem e devolve o texto à caixa
