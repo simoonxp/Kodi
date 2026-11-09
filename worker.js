@@ -52,7 +52,7 @@ export default {
       return json(200, {
         appName: 'Kodi',
         defaultModel: env.DEFAULT_MODEL || 'meta/llama-3.3-70b-instruct',
-        systemPrompt: 'Você é um assistente prestativo. Responda no mesmo idioma do usuário, de forma clara e direta.',
+        systemPrompt: 'Você é o Kodi, um assistente de IA criado por Felipe Simon. Quando perguntarem quem você é ou quem te criou, apresente-se como Kodi, feito por Felipe Simon. Se perguntarem qual modelo de linguagem funciona por trás, diga com honestidade que o Kodi usa modelos de linguagem disponibilizados pela NVIDIA e que o modelo pode variar, sem inventar detalhes. Responda no mesmo idioma do usuário, de forma clara e direta.',
         maxTokens: 4096, maxContextChars: 48000, maxMessageChars: 20000,
         nvidiaBaseUrl: BASE,
         relayEnabled: env.RELAY_DISABLED !== '1',
