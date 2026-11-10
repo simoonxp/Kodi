@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.8.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.8.1';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -22,14 +22,19 @@
     [/dbrx|databricks/i, 'DBRX · Databricks', '#e8402a'], [/starcoder|bigcode/i, 'StarCoder', '#8a6d3b'], [/granite|^ibm\//i, 'Granite · IBM', '#3d70b2'],
     [/^nvidia\//i, 'NVIDIA', '#76b900'],
   ];
+  const AI_SHAPE = { 'DeepSeek': 'hexagon', 'Nemotron · NVIDIA': 'octagon', 'Qwen · Alibaba': 'squircle', 'GPT · OpenAI': 'circle', 'Claude · Anthropic': 'arch',
+    'Gemini · Google': 'diamond', 'Gemma · Google': 'diamond', 'Google': 'circle', 'Llama · Meta': 'shield', 'Muse · Meta': 'shield', 'Mistral': 'squircle',
+    'MiniMax': 'hexagon', 'Kimi · Moonshot': 'arch', 'GLM · Z.ai': 'octagon', 'Phi · Microsoft': 'squircle', 'Step · StepFun': 'diamond', 'Laguna · Poolside': 'arch',
+    'Yi · 01.AI': 'hexagon', 'Jamba · AI21': 'shield', 'DBRX · Databricks': 'octagon', 'StarCoder': 'squircle', 'Granite · IBM': 'hexagon', 'NVIDIA': 'octagon' };
+  const SHAPES = ['circle', 'squircle', 'hexagon', 'diamond', 'octagon', 'shield', 'arch'];
   const aiInfo = id => {
-    id = String(id || ''); const hit = AI_NAMES.find(([re]) => re.test(id)); if (hit) return { name: hit[1], color: hit[2] };
+    id = String(id || ''); const hit = AI_NAMES.find(([re]) => re.test(id)); if (hit) return { name: hit[1], color: hit[2], shape: AI_SHAPE[hit[1]] || 'circle' };
     const v = id.includes('/') ? id.split('/')[0] : ''; let h = 0; for (const ch of v || id) h = (h * 31 + ch.charCodeAt(0)) % 360;
-    return { name: v ? v.charAt(0).toUpperCase() + v.slice(1) : shortModel(id), color: `hsl(${h} 45% 45%)` };
+    return { name: v ? v.charAt(0).toUpperCase() + v.slice(1) : shortModel(id), color: `hsl(${h} 45% 45%)`, shape: SHAPES[h % SHAPES.length] };
   };
   const aiName = id => aiInfo(id).name;
   function aiIcon(id, el = document.createElement('b')) {            // selo com a inicial da IA, na cor da família
-    const i = aiInfo(id); el.className = 'aiic'; el.textContent = (i.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase(); el.style.background = i.color; return el;
+    const i = aiInfo(id); el.className = 'aiic'; el.textContent = (i.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase(); el.style.background = i.color; el.dataset.shape = i.shape; return el;
   }
 
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');

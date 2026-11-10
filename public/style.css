@@ -308,3 +308,12 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .aiic { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%; color: #fff; font: 700 11px/1 system-ui, sans-serif; font-style: normal; }
 .mchip .aiic { margin-right: -1px; }
 .mtag { display: inline-flex; align-items: center; gap: 6px; }
+
+/* formas próprias do Kodi para cada família de IA (não imitam nenhum logotipo) */
+.aiic { width: 20px; height: 20px; }
+.aiic[data-shape="squircle"] { border-radius: 32%; }
+.aiic[data-shape="arch"] { border-radius: 50% 50% 22% 22%; }
+.aiic[data-shape="hexagon"] { border-radius: 0; clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%); }
+.aiic[data-shape="diamond"] { border-radius: 0; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); font-size: 10px; }
+.aiic[data-shape="octagon"] { border-radius: 0; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+.aiic[data-shape="shield"] { border-radius: 0; clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); padding-bottom: 3px; }
