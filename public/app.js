@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.7.1';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.8.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -12,20 +12,26 @@
   const base = p => (p || '').replace(/\/+$/, '').split('/').pop() || p || '';
   const shortModel = m => String(m || '').split('/').pop();
   // Nome amigável da IA (a "marca"), em vez do código técnico do modelo. A ordem importa: o mais específico vem antes.
-  const AI_NAMES = [
-    [/deepseek/i, 'DeepSeek'], [/nemotron/i, 'Nemotron · NVIDIA'], [/qwen|qwq/i, 'Qwen · Alibaba'],
-    [/gpt|^openai\//i, 'GPT · OpenAI'], [/claude|^anthropic\//i, 'Claude · Anthropic'], [/gemini/i, 'Gemini · Google'],
-    [/gemma/i, 'Gemma · Google'], [/^google\//i, 'Google'], [/llama|^meta\/(?!muse)/i, 'Llama · Meta'], [/muse/i, 'Muse · Meta'],
-    [/mistral|mixtral|codestral|ministral|magistral/i, 'Mistral'], [/minimax/i, 'MiniMax'], [/kimi|moonshot/i, 'Kimi · Moonshot'],
-    [/glm|^z-ai\//i, 'GLM · Z.ai'], [/phi-|^microsoft\//i, 'Phi · Microsoft'], [/step-|stepfun/i, 'Step · StepFun'],
-    [/laguna|poolside/i, 'Laguna · Poolside'], [/\byi-|^01-ai\//i, 'Yi · 01.AI'], [/jamba|^ai21/i, 'Jamba · AI21'],
-    [/dbrx|databricks/i, 'DBRX · Databricks'], [/starcoder|bigcode/i, 'StarCoder'], [/granite|^ibm\//i, 'Granite · IBM'],
-    [/^nvidia\//i, 'NVIDIA'],
+  const AI_NAMES = [   // [padrão do código do modelo, nome mostrado, cor do selo]
+    [/deepseek/i, 'DeepSeek', '#3b6df0'], [/nemotron/i, 'Nemotron · NVIDIA', '#4aa31a'], [/qwen|qwq/i, 'Qwen · Alibaba', '#7a5af8'],
+    [/gpt|^openai\//i, 'GPT · OpenAI', '#10a37f'], [/claude|^anthropic\//i, 'Claude · Anthropic', '#d9774a'], [/gemini/i, 'Gemini · Google', '#4285f4'],
+    [/gemma/i, 'Gemma · Google', '#2b8cff'], [/^google\//i, 'Google', '#5f7fa3'], [/llama|^meta\/(?!muse)/i, 'Llama · Meta', '#1877f2'], [/muse/i, 'Muse · Meta', '#6a8cff'],
+    [/mistral|mixtral|codestral|ministral|magistral/i, 'Mistral', '#f2711c'], [/minimax/i, 'MiniMax', '#e0457b'], [/kimi|moonshot/i, 'Kimi · Moonshot', '#1fb5c9'],
+    [/glm|^z-ai\//i, 'GLM · Z.ai', '#3f51d9'], [/phi-|^microsoft\//i, 'Phi · Microsoft', '#00a4ef'], [/step-|stepfun/i, 'Step · StepFun', '#e5533d'],
+    [/laguna|poolside/i, 'Laguna · Poolside', '#9b59b6'], [/\byi-|^01-ai\//i, 'Yi · 01.AI', '#2e9e6b'], [/jamba|^ai21/i, 'Jamba · AI21', '#d4478f'],
+    [/dbrx|databricks/i, 'DBRX · Databricks', '#e8402a'], [/starcoder|bigcode/i, 'StarCoder', '#8a6d3b'], [/granite|^ibm\//i, 'Granite · IBM', '#3d70b2'],
+    [/^nvidia\//i, 'NVIDIA', '#76b900'],
   ];
-  const aiName = id => {
-    id = String(id || ''); const hit = AI_NAMES.find(([re]) => re.test(id)); if (hit) return hit[1];
-    const v = id.includes('/') ? id.split('/')[0] : ''; return v ? v.charAt(0).toUpperCase() + v.slice(1) : shortModel(id);
+  const aiInfo = id => {
+    id = String(id || ''); const hit = AI_NAMES.find(([re]) => re.test(id)); if (hit) return { name: hit[1], color: hit[2] };
+    const v = id.includes('/') ? id.split('/')[0] : ''; let h = 0; for (const ch of v || id) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    return { name: v ? v.charAt(0).toUpperCase() + v.slice(1) : shortModel(id), color: `hsl(${h} 45% 45%)` };
   };
+  const aiName = id => aiInfo(id).name;
+  function aiIcon(id, el = document.createElement('b')) {            // selo com a inicial da IA, na cor da família
+    const i = aiInfo(id); el.className = 'aiic'; el.textContent = (i.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase(); el.style.background = i.color; return el;
+  }
+
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
   const ICON = {
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg>',
@@ -412,7 +418,7 @@
       if (!this.raw.trim()) return;
       const a = document.createElement('div'); a.className = 'actions';
       a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took || info ? `<span class="took" title="${esc(tip)}">${[took ? fmtSecs(took) : '', info].filter(Boolean).join(' · ')}</span>` : '');
-      if (model) { const t = document.createElement('span'); t.className = 'mtag'; t.textContent = aiName(model); t.title = 'Respondido por ' + aiName(model) + ' (' + model + ')'; a.appendChild(t); }
+      if (model) { const t = document.createElement('span'); t.className = 'mtag'; t.title = 'Respondido por ' + aiName(model) + ' (' + model + ')'; t.appendChild(aiIcon(model)); t.appendChild(document.createTextNode(aiName(model))); a.appendChild(t); }
       this.el.appendChild(a);
     }
     remove() { this.stopClock(); this.el.remove(); }
@@ -491,7 +497,7 @@
   }
   function updateModelChip() {                       // mostra no topo qual modelo da NVIDIA está em uso
     const c = $('#modelChip'); if (!c) return;
-    c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model);
+    c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model); aiIcon(S.model, $('#modelChipIc'));
     c.title = 'IA em uso: ' + aiName(S.model) + ' (' + S.model + '). Clique para trocar';
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).

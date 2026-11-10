@@ -303,3 +303,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .mchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mtag { margin-left: 10px; align-self: center; color: var(--muted); font-size: 12.5px; cursor: help; }
 @media (max-width: 760px) { .mchip { max-width: 38vw; margin-left: 6px; } }
+
+/* selo da IA: círculo colorido com a inicial */
+.aiic { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%; color: #fff; font: 700 11px/1 system-ui, sans-serif; font-style: normal; }
+.mchip .aiic { margin-right: -1px; }
+.mtag { display: inline-flex; align-items: center; gap: 6px; }
