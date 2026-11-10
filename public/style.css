@@ -234,3 +234,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 #dlgAcc .gbtn { width: 100%; justify-content: center; gap: 8px; }
 #dlgAcc .gbtn svg { width: 16px; height: 16px; flex: none; }
 .or[hidden], .gbtn[hidden] { display: none !important; }
+#accPick { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+#accPick[hidden] { display: none; }
+#accPick .linkbtn { margin-top: 2px; align-self: flex-start; }
+#accPick .gbtn { display: inline-flex; align-items: center; justify-content: center; }
