@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.2.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.2.1';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1233,7 +1233,7 @@
   let accModeNow = '';
   function accMode(m) {                      // '' = só os dois botões; 'in' = entrar; 'up' = criar conta
     accModeNow = m;
-    $('#accChoose').hidden = !!m; $('#accOr').hidden = $('#accGoogle').hidden = !!m; $('#accForm').hidden = !m;
+    $('#accChoose').hidden = !!m; $('#accGoogleTxt').textContent = m === 'up' ? 'Criar com Google' : 'Entrar com Google'; $('#accForm').hidden = !m;
     $('#accLogin').hidden = m !== 'in'; $('#accSignup').hidden = m !== 'up';
     $('#accForgot').hidden = m !== 'in';
     $('#accPass').autocomplete = m === 'up' ? 'new-password' : 'current-password';
