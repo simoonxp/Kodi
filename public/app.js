@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.3.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.4.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -939,9 +939,22 @@
   }
   function openAccount() {
     closeDrawer(); accModeNow = ''; accStep = 'pick'; renderAccount(); $('#accMsg').textContent = '';
+    $('#dlgAcc').classList.toggle('profile', cloudOn && !!Cloud.session);
     if (!$('#dlgAcc').open) $('#dlgAcc').showModal();
   }
   $('#btnAcc').addEventListener('click', openAccount);
+  function closeAccMenu() { $('#accMenu').hidden = true; $('#accBlock').setAttribute('aria-expanded', 'false'); }
+  $('#accBlock').addEventListener('click', e => { e.stopPropagation(); const open = $('#accMenu').hidden; $('#accMenu').hidden = !open; $('#accBlock').setAttribute('aria-expanded', String(open)); });
+  document.addEventListener('click', e => { if (!e.target.closest('#acct')) closeAccMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAccMenu(); });
+  $('#amProfile').addEventListener('click', () => { closeAccMenu(); openAccount(); });
+  $('#amSettings').addEventListener('click', () => { closeAccMenu(); openSettings(); });
+  $('#amLogout').addEventListener('click', () => { closeAccMenu(); $('#accLogout').click(); });
+  $('#accSaveName').addEventListener('click', async () => {
+    const v = $('#accName').value.trim(); if (!v) return say('accMsg', 'Escreva um nome.', false);
+    accBusy(true); try { const r = await Cloud.call('/auth/v1/user', { method: 'PUT', body: { data: { full_name: v } } });
+      if (r.ok) { Cloud.save({ ...Cloud.session, user: { ...Cloud.session.user, name: v } }); renderAccount(); say('accMsg', 'Nome salvo.', true); } else say('accMsg', Cloud.errText(r), false); } finally { accBusy(false); }
+  });
   $('#dlgAcc').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
   function openSettings() {
     closeDrawer(); refreshSettings(); updateInstallBox(); renderAccount();
@@ -1078,11 +1091,12 @@
   // ======================================================================
   const SB = window.KODI_SUPABASE || {};
   const cloudOn = !!(SB.url && SB.key);
+  const nameOf = u => { const m = (u && u.user_metadata) || {}; return String(m.full_name || m.name || '').trim(); };
   const Cloud = {
     session: null, applying: false, busy: false, timer: null, state: '', last: 0, recovery: false,
     load() { try { this.session = JSON.parse(localStorage.getItem('kodi.session') || 'null'); } catch { this.session = null; } },
     save(sess) { this.session = sess; try { sess ? localStorage.setItem('kodi.session', JSON.stringify(sess)) : localStorage.removeItem('kodi.session'); } catch { /* sem armazenamento */ } },
-    fromAuth(j) { return j && j.access_token ? { at: j.access_token, rt: j.refresh_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000, user: { id: j.user && j.user.id, email: j.user && j.user.email } } : null; },
+    fromAuth(j) { return j && j.access_token ? { at: j.access_token, rt: j.refresh_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000, user: { id: j.user && j.user.id, email: j.user && j.user.email, name: nameOf(j.user) } } : null; },
     async fresh() {
       const se = this.session;
       if (!se || se.exp - Date.now() > 60000) return !!se;
@@ -1219,8 +1233,15 @@
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
     const lg = cloudOn && !!Cloud.session;
-    $('#accIcon').toggleAttribute('hidden', lg); $('#accImg').hidden = !lg; $('#btnAcc').classList.toggle('on', lg);
-    $('#btnAcc').title = lg ? 'Conta: ' + Cloud.session.user.email : 'Entrar ou criar conta';
+    $('#btnAcc').hidden = lg; $('#acct').hidden = !lg;
+    if (!lg) closeAccMenu();
+    if (lg) {
+      const u = Cloud.session.user, nm = u.name || (u.email || '').split('@')[0] || 'Minha conta';
+      document.querySelectorAll('#acct .am-name').forEach(e => { e.textContent = nm; });
+      document.querySelectorAll('#acct .am-mail').forEach(e => { e.textContent = u.email || ''; });
+      if (document.activeElement !== $('#accName')) $('#accName').value = u.name || '';
+    }
+    $('#dlgAcc h2').textContent = lg ? 'Perfil' : 'Conta';
     const on = cloudOn;
     $('#accOff').hidden = on; $('#accOut').hidden = !on || !!Cloud.session; $('#accIn').hidden = !on || !Cloud.session;
     $('#accRec').hidden = !(on && Cloud.recovery && Cloud.session);
@@ -1320,8 +1341,8 @@
     if (!se) return false;
     Cloud.save({ ...se, user: se.user.id ? se.user : { id: '', email: '' } });
     if (p.get('type') === 'recovery') Cloud.recovery = true;
-    if (!se.user.id) fetch(SB.url.replace(/\/$/, '') + '/auth/v1/user', { headers: { apikey: SB.key, Authorization: 'Bearer ' + se.at } })
-      .then(r => r.ok ? r.json() : null).then(u => { if (u && u.id && Cloud.session) { Cloud.save({ ...Cloud.session, user: { id: u.id, email: u.email } }); renderAccount(); } }).catch(() => {});
+    fetch(SB.url.replace(/\/$/, '') + '/auth/v1/user', { headers: { apikey: SB.key, Authorization: 'Bearer ' + se.at } })
+      .then(r => r.ok ? r.json() : null).then(u => { if (u && u.id && Cloud.session) { Cloud.save({ ...Cloud.session, user: { id: u.id, email: u.email, name: nameOf(u) } }); renderAccount(); } }).catch(() => {});
     return true;
   }
 
