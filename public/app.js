@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.4.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.5.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -37,7 +37,7 @@
   // ======================================================================
   // Armazenamento local (IndexedDB; se o navegador não permitir, fica só na memória)
   // ======================================================================
-  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
+  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage', 'avatar']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
   const Store = (() => {
     let db = null;
     const mem = { chats: new Map(), msgs: new Map(), meta: new Map() };
@@ -939,7 +939,8 @@
   }
   function openAccount() {
     closeDrawer(); accModeNow = ''; accStep = 'pick'; renderAccount(); $('#accMsg').textContent = '';
-    $('#dlgAcc').classList.toggle('profile', cloudOn && !!Cloud.session);
+    pendingAv = undefined; $('#accFile').value = '';
+    $('#dlgAcc').classList.toggle('profile', cloudOn && !!Cloud.session); renderAvBig();
     if (!$('#dlgAcc').open) $('#dlgAcc').showModal();
   }
   $('#btnAcc').addEventListener('click', openAccount);
@@ -950,10 +951,24 @@
   $('#amProfile').addEventListener('click', () => { closeAccMenu(); openAccount(); });
   $('#amSettings').addEventListener('click', () => { closeAccMenu(); openSettings(); });
   $('#amLogout').addEventListener('click', () => { closeAccMenu(); $('#accLogout').click(); });
+  $('#accPhoto').addEventListener('click', () => $('#accFile').click());
+  $('#accFile').addEventListener('change', async () => {
+    const f = $('#accFile').files[0]; if (!f) return;
+    try { pendingAv = await photoToData(f); renderAvBig(); say('accMsg', 'Foto escolhida. Clique em Salvar.', true); } catch (e) { say('accMsg', e.message, false); }
+  });
+  $('#accPhotoReset').addEventListener('click', () => { pendingAv = ''; renderAvBig(); say('accMsg', 'Foto padrão. Clique em Salvar.', true); });
   $('#accSaveName').addEventListener('click', async () => {
-    const v = $('#accName').value.trim(); if (!v) return say('accMsg', 'Escreva um nome.', false);
-    accBusy(true); try { const r = await Cloud.call('/auth/v1/user', { method: 'PUT', body: { data: { full_name: v } } });
-      if (r.ok) { Cloud.save({ ...Cloud.session, user: { ...Cloud.session.user, name: v } }); renderAccount(); say('accMsg', 'Nome salvo.', true); } else say('accMsg', Cloud.errText(r), false); } finally { accBusy(false); }
+    const v = $('#accName').value.trim(), u = Cloud.session && Cloud.session.user; if (!u) return;
+    accBusy(true);
+    try {
+      if (v && v !== (u.name || '')) {
+        const r = await Cloud.call('/auth/v1/user', { method: 'PUT', body: { data: { full_name: v } } });
+        if (!r.ok) return say('accMsg', Cloud.errText(r), false);
+        Cloud.save({ ...Cloud.session, user: { ...Cloud.session.user, name: v } });
+      }
+      if (pendingAv !== undefined) { S.avatar = pendingAv; await Store.setMeta('avatar', S.avatar); pendingAv = undefined; }
+      renderAccount(); say('accMsg', 'Salvo.', true);
+    } finally { accBusy(false); }
   });
   $('#dlgAcc').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
   function openSettings() {
@@ -1194,7 +1209,7 @@
     },
 
     // ---- preferências
-    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage') }; },
+    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage'), avatar: (await Store.getMeta('avatar')) || '' }; },
     touch() {
       if (this.applying) return;
       Store.setMeta('settingsUpdated', Date.now()).catch(() => {});
@@ -1223,6 +1238,7 @@
           if (typeof remote.data.model === 'string') S.model = remote.data.model;
           if (Array.isArray(remote.data.good)) S.good = remote.data.good;
           if (Array.isArray(remote.data.bad)) S.bad = remote.data.bad;
+          if (typeof remote.data.avatar === 'string') { S.avatar = remote.data.avatar; applyAvatar(); }
         } finally { this.applying = false; }
         fillModels(S.models); refreshUsageBadge();
       } else if (!remote || mine > Number(remote.updated)) await this.pushSettings();
@@ -1230,6 +1246,21 @@
   };
   Store.onSetting = () => Cloud.touch();
 
+  const DEF_AV = '/avatar-kodi.svg';
+  let pendingAv;                                           // foto escolhida mas ainda não salva (undefined = sem mudança)
+  function applyAvatar() { document.querySelectorAll('#acct .av').forEach(i => { i.src = S.avatar || DEF_AV; }); renderAvBig(); }
+  function renderAvBig() { const a = pendingAv !== undefined ? pendingAv : S.avatar; $('#accAvBig').src = a || DEF_AV; $('#accPhotoReset').hidden = !a; }
+  function photoToData(file) {                             // corta quadrado no centro e reduz para 256px (fica pequena e nítida)
+    return new Promise((ok, fail) => {
+      if (!file || !/^image\//.test(file.type)) return fail(new Error('Escolha um arquivo de imagem.'));
+      const fr = new FileReader(); fr.onerror = () => fail(new Error('Não consegui ler a imagem.'));
+      fr.onload = () => { const im = new Image(); im.onerror = () => fail(new Error('Esse formato de imagem não é aceito.'));
+        im.onload = () => { const n = Math.min(im.naturalWidth, im.naturalHeight), c = document.createElement('canvas'); c.width = c.height = 256;
+          c.getContext('2d').drawImage(im, (im.naturalWidth - n) / 2, (im.naturalHeight - n) / 2, n, n, 0, 0, 256, 256); ok(c.toDataURL('image/jpeg', 0.86)); };
+        im.src = fr.result; };
+      fr.readAsDataURL(file);
+    });
+  }
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
     const lg = cloudOn && !!Cloud.session;
@@ -1242,6 +1273,7 @@
       if (document.activeElement !== $('#accName')) $('#accName').value = u.name || '';
     }
     $('#dlgAcc h2').textContent = lg ? 'Perfil' : 'Conta';
+    applyAvatar();
     const on = cloudOn;
     $('#accOff').hidden = on; $('#accOut').hidden = !on || !!Cloud.session; $('#accIn').hidden = !on || !Cloud.session;
     $('#accRec').hidden = !(on && Cloud.recovery && Cloud.session);
@@ -1311,7 +1343,7 @@
   $('#accLogout').addEventListener('click', async () => {
     if (!confirm('Sair da conta neste aparelho?')) return;
     const wipe = confirm('Apagar também as conversas guardadas neste aparelho? (recomendado em computador compartilhado)\n\nOK = apagar daqui (continuam salvas na conta)\nCancelar = manter aqui');
-    await Cloud.signOut();
+    await Cloud.signOut(); S.avatar = ''; try { await Store.delMeta('avatar'); } catch { /* segue */ }
     if (wipe) { try { for (const c of await Store.listChats()) await Store.deleteChat(c.id); } catch { /* segue */ } await loadChats(); newChat(); }
     renderAccount(); say('accMsg', 'Você saiu da conta.', true);
   });
@@ -1354,7 +1386,7 @@
     await Store.init();
     try {
       S.key = await Store.getMeta('key'); S.conn = await Store.getMeta('conn');
-      S.access = (await Store.getMeta('access')) || ''; S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || []; S.bad = (await Store.getMeta('bad')) || [];
+      S.access = (await Store.getMeta('access')) || ''; S.avatar = (await Store.getMeta('avatar')) || ''; applyAvatar(); S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || []; S.bad = (await Store.getMeta('bad')) || [];
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }

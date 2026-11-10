@@ -99,9 +99,14 @@
         <div class="row"><button class="primary" id="accSavePw">Salvar nova senha</button></div>
       </div>
       <div id="accIn" hidden>
-        <div class="prof"><img class="av big" src="/avatar-kodi.svg" alt=""><div class="prof-f"><input id="accName" class="field" placeholder="Seu nome" maxlength="40" autocomplete="name"><button class="ghost" id="accSaveName" type="button">Salvar nome</button></div></div>
-        <div class="row"><button class="ghost" id="accSync">Sincronizar agora</button><button class="ghost" id="accLogout">Sair</button></div>
-        <div class="row"><button class="ghost danger" id="accWipeCloud">Apagar meus dados da nuvem</button><button class="ghost danger" id="accDelete">Excluir minha conta</button></div>
+        <div class="prof">
+          <button type="button" class="avbtn" id="accPhoto" aria-label="Trocar foto" title="Escolher foto da galeria"><img class="big" id="accAvBig" src="/avatar-kodi.svg" alt=""><span class="cam"><svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span></button>
+          <input id="accFile" type="file" accept="image/*" hidden>
+          <div class="prof-f"><input id="accName" class="field" placeholder="Seu nome" maxlength="40" autocomplete="name"><button class="linkbtn" id="accPhotoReset" type="button" hidden>Usar foto padrão</button></div>
+        </div>
+        <div class="row"><button class="primary" id="accSaveName" type="button">Salvar</button></div>
+        <div class="row"><button class="ghost danger" id="accDelete">Excluir minha conta</button></div>
+        <div hidden><button id="accSync"></button><button id="accLogout"></button><button id="accWipeCloud"></button></div>
       </div>
       <div class="msg" id="accMsg" role="status"></div>
     </section>
