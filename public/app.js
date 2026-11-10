@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.7.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.7.1';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -11,6 +11,21 @@
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
   const base = p => (p || '').replace(/\/+$/, '').split('/').pop() || p || '';
   const shortModel = m => String(m || '').split('/').pop();
+  // Nome amigável da IA (a "marca"), em vez do código técnico do modelo. A ordem importa: o mais específico vem antes.
+  const AI_NAMES = [
+    [/deepseek/i, 'DeepSeek'], [/nemotron/i, 'Nemotron · NVIDIA'], [/qwen|qwq/i, 'Qwen · Alibaba'],
+    [/gpt|^openai\//i, 'GPT · OpenAI'], [/claude|^anthropic\//i, 'Claude · Anthropic'], [/gemini/i, 'Gemini · Google'],
+    [/gemma/i, 'Gemma · Google'], [/^google\//i, 'Google'], [/llama|^meta\/(?!muse)/i, 'Llama · Meta'], [/muse/i, 'Muse · Meta'],
+    [/mistral|mixtral|codestral|ministral|magistral/i, 'Mistral'], [/minimax/i, 'MiniMax'], [/kimi|moonshot/i, 'Kimi · Moonshot'],
+    [/glm|^z-ai\//i, 'GLM · Z.ai'], [/phi-|^microsoft\//i, 'Phi · Microsoft'], [/step-|stepfun/i, 'Step · StepFun'],
+    [/laguna|poolside/i, 'Laguna · Poolside'], [/\byi-|^01-ai\//i, 'Yi · 01.AI'], [/jamba|^ai21/i, 'Jamba · AI21'],
+    [/dbrx|databricks/i, 'DBRX · Databricks'], [/starcoder|bigcode/i, 'StarCoder'], [/granite|^ibm\//i, 'Granite · IBM'],
+    [/^nvidia\//i, 'NVIDIA'],
+  ];
+  const aiName = id => {
+    id = String(id || ''); const hit = AI_NAMES.find(([re]) => re.test(id)); if (hit) return hit[1];
+    const v = id.includes('/') ? id.split('/')[0] : ''; return v ? v.charAt(0).toUpperCase() + v.slice(1) : shortModel(id);
+  };
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
   const ICON = {
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg>',
@@ -397,7 +412,7 @@
       if (!this.raw.trim()) return;
       const a = document.createElement('div'); a.className = 'actions';
       a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took || info ? `<span class="took" title="${esc(tip)}">${[took ? fmtSecs(took) : '', info].filter(Boolean).join(' · ')}</span>` : '');
-      if (model) { const t = document.createElement('span'); t.className = 'mtag'; t.textContent = shortModel(model); t.title = 'Respondido por ' + model; a.appendChild(t); }
+      if (model) { const t = document.createElement('span'); t.className = 'mtag'; t.textContent = aiName(model); t.title = 'Respondido por ' + aiName(model) + ' (' + model + ')'; a.appendChild(t); }
       this.el.appendChild(a);
     }
     remove() { this.stopClock(); this.el.remove(); }
@@ -476,8 +491,8 @@
   }
   function updateModelChip() {                       // mostra no topo qual modelo da NVIDIA está em uso
     const c = $('#modelChip'); if (!c) return;
-    c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = shortModel(S.model);
-    c.title = 'Modelo de IA em uso: ' + S.model + '. Clique para trocar';
+    c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model);
+    c.title = 'IA em uso: ' + aiName(S.model) + ' (' + S.model + '). Clique para trocar';
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
   let probing = false;
