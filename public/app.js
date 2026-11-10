@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.2.2';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.2.3';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1242,6 +1242,9 @@
     $('#accPass').autocomplete = m === 'up' ? 'new-password' : 'current-password';
     if (m && accStep === 'email') $('#accEmail').focus();
   }
+  $('#accGoogle').addEventListener('click', () => {      // o login com Google acontece no Supabase e volta para cá já logado
+    location.href = SB.url.replace(/\/$/, '') + '/auth/v1/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
+  });
   $('#accGoIn').addEventListener('click', () => accMode('in'));
   $('#accGoUp').addEventListener('click', () => accMode('up'));
   $('#accPickEmail').addEventListener('click', () => accMode(accModeNow, 'email'));
