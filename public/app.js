@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.2.3';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.2.4';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1242,8 +1242,15 @@
     $('#accPass').autocomplete = m === 'up' ? 'new-password' : 'current-password';
     if (m && accStep === 'email') $('#accEmail').focus();
   }
-  $('#accGoogle').addEventListener('click', () => {      // o login com Google acontece no Supabase e volta para cá já logado
-    location.href = SB.url.replace(/\/$/, '') + '/auth/v1/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
+  $('#accGoogle').addEventListener('click', async () => {   // o login com Google acontece no Supabase e volta para cá já logado
+    const base = SB.url.replace(/\/$/, '');
+    say('accMsg', 'Abrindo o Google...', true);
+    try {
+      const r = await fetch(base + '/auth/v1/settings', { headers: { apikey: SB.key } });
+      const j = r.ok ? await r.json() : null;
+      if (j && j.external && j.external.google === false) { say('accMsg', 'O login com Google ainda não foi ativado no Supabase.', false); return; }
+    } catch (e) { say('accMsg', 'Não consegui falar com o servidor. Verifique a internet e tente de novo.', false); return; }
+    location.href = base + '/auth/v1/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
   });
   $('#accGoIn').addEventListener('click', () => accMode('in'));
   $('#accGoUp').addEventListener('click', () => accMode('up'));
