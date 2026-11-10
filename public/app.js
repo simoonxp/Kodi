@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.5.1';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.6.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -14,6 +14,7 @@
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
   const ICON = {
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg>',
+    pin: '<svg viewBox="0 0 24 24"><path d="M12 17v5M8 3h8l-1.5 6.5L18 13H6l3.5-3.5z"/></svg>',
     pencil: '<svg viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19z"/></svg>',
   };
   let cfg = {};
@@ -22,7 +23,7 @@
     key: null, conn: null, access: '', model: '', models: [], good: [], bad: [],
     chats: [], chat: null, messages: [], codeSessions: [],
     current: { id: null, project: null, cwd: null },
-    search: '', streaming: false, abort: null, deferred: null,
+    search: '', pinned: [], streaming: false, abort: null, deferred: null,
   };
   const msgs = $('#msgs');
 
@@ -37,7 +38,7 @@
   // ======================================================================
   // Armazenamento local (IndexedDB; se o navegador não permitir, fica só na memória)
   // ======================================================================
-  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage', 'avatar']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
+  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage', 'avatar', 'pinned']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
   const Store = (() => {
     let db = null;
     const mem = { chats: new Map(), msgs: new Map(), meta: new Map() };
@@ -544,33 +545,39 @@
         .map(s => ({ id: s.id, title: s.title, sub: base(s.cwd), mtime: s.mtime, session: s }));
     }
     if (!items.length) { box.innerHTML = `<div class="empty">${q ? 'Nada encontrado.' : 'Nenhuma conversa ainda.'}</div>`; return; }
-    const now = Date.now(), day = 86400000;
-    const groups = [['Hoje', []], ['Ontem', []], ['Últimos 7 dias', []], ['Antigas', []]];
-    for (const it of items) { const d = now - it.mtime; groups[d < day ? 0 : d < 2 * day ? 1 : d < 7 * day ? 2 : 3][1].push(it); }
+    const pins = S.mode === 'chat' ? S.pinned : [];
+    const byId = new Map(items.map(it => [it.id, it]));
+    let fixed = q ? [] : pins.map(id => byId.get(id)).filter(Boolean);
+    const rest = items.filter(it => q || !fixed.includes(it)).sort((a, b) => b.mtime - a.mtime);
     box.innerHTML = '';
-    for (const [name, arr] of groups) {
-      if (!arr.length) continue;
+    const section = (name, arr) => {
+      if (!arr.length) return;
       const g = document.createElement('div'); g.className = 'grp'; g.textContent = name; box.appendChild(g);
       for (const it of arr) {
+        const isPin = pins.includes(it.id);
         const row = document.createElement('div');
         row.className = 'item' + (it.id === S.current.id ? ' active' : '');
         const open = document.createElement('button'); open.className = 'open'; open.type = 'button';
-        open.innerHTML = '<div class="t"></div><div class="s"></div>';
-        $('.t', open).textContent = it.title; $('.s', open).textContent = [it.sub, ago(it.mtime)].filter(Boolean).join(' · ');
+        open.innerHTML = '<div class="t"></div>'; open.title = [it.sub, ago(it.mtime)].filter(Boolean).join(' · ');
+        $('.t', open).textContent = it.title;
         open.addEventListener('click', () => (it.chat ? openChat(it.id) : openSession(it.session)));
         row.appendChild(open);
         if (it.chat) {
           const acts = document.createElement('div'); acts.className = 'acts';
-          acts.innerHTML = `<button class="icon" type="button" aria-label="Renomear" title="Renomear">${ICON.pencil}</button><button class="icon" type="button" aria-label="Apagar" title="Apagar">${ICON.trash}</button>`;
-          const [ren, del] = $$('button', acts);
+          acts.innerHTML = `<button class="icon${isPin ? ' on' : ''}" type="button" aria-label="${isPin ? 'Desafixar' : 'Fixar'}" title="${isPin ? 'Desafixar' : 'Fixar no topo'}">${ICON.pin}</button><button class="icon" type="button" aria-label="Renomear" title="Renomear">${ICON.pencil}</button><button class="icon" type="button" aria-label="Apagar" title="Apagar">${ICON.trash}</button>`;
+          const [pin, ren, del] = $$('button', acts);
+          pin.addEventListener('click', () => togglePin(it.id));
           ren.addEventListener('click', () => renameChat(it.chat));
           del.addEventListener('click', () => deleteChat(it.chat));
           row.appendChild(acts);
         }
         box.appendChild(row);
       }
-    }
+    };
+    if (q) section('Resultados', rest); else { section('Fixados', fixed); section('Recentes', rest); }
   }
+  async function setPinned(arr) { S.pinned = arr; try { await Store.setMeta('pinned', arr); } catch { /* sem espaço */ } renderList(); }
+  const togglePin = id => setPinned(S.pinned.includes(id) ? S.pinned.filter(x => x !== id) : [id, ...S.pinned]);
   async function loadChats() {
     try { S.chats = await Store.listChats(); } catch { S.chats = []; }
     if (S.mode === 'chat') renderList();
@@ -588,10 +595,13 @@
   async function deleteChat(c) {
     if (S.streaming) return;
     if (!confirm(`Apagar a conversa "${c.title}"? Isso não pode ser desfeito.`)) return;
-    try { await Store.deleteChat(c.id); Cloud.deleteRemote(c.id); if (S.chat && S.chat.id === c.id) newChat(); await loadChats(); }
+    try { await Store.deleteChat(c.id); Cloud.deleteRemote(c.id); if (S.pinned.includes(c.id)) await setPinned(S.pinned.filter(x => x !== c.id)); if (S.chat && S.chat.id === c.id) newChat(); await loadChats(); }
     catch { toast('Não consegui apagar neste aparelho.'); }
   }
   $('#search').addEventListener('input', e => { S.search = e.target.value; renderList(); });
+  function closeSearch() { $('#search').hidden = true; $('#search').value = ''; S.search = ''; renderList(); }
+  $('#btnSearch').addEventListener('click', () => { if ($('#search').hidden) { $('#search').hidden = false; $('#search').focus(); } else closeSearch(); });
+  $('#search').addEventListener('keydown', e => { if (e.key === 'Escape') closeSearch(); });
   $('#folder').addEventListener('change', e => {
     const sel = e.target;
     if (sel.value === '__other') {
@@ -1209,7 +1219,7 @@
     },
 
     // ---- preferências
-    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage'), avatar: (await Store.getMeta('avatar')) || '' }; },
+    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage'), avatar: (await Store.getMeta('avatar')) || '', pinned: S.pinned || [] }; },
     touch() {
       if (this.applying) return;
       Store.setMeta('settingsUpdated', Date.now()).catch(() => {});
@@ -1239,6 +1249,7 @@
           if (Array.isArray(remote.data.good)) S.good = remote.data.good;
           if (Array.isArray(remote.data.bad)) S.bad = remote.data.bad;
           if (typeof remote.data.avatar === 'string') { S.avatar = remote.data.avatar; applyAvatar(); }
+          if (Array.isArray(remote.data.pinned)) { S.pinned = remote.data.pinned; renderList(); }
         } finally { this.applying = false; }
         fillModels(S.models); refreshUsageBadge();
       } else if (!remote || mine > Number(remote.updated)) await this.pushSettings();
@@ -1386,7 +1397,7 @@
     await Store.init();
     try {
       S.key = await Store.getMeta('key'); S.conn = await Store.getMeta('conn');
-      S.access = (await Store.getMeta('access')) || ''; S.avatar = (await Store.getMeta('avatar')) || ''; applyAvatar(); S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || []; S.bad = (await Store.getMeta('bad')) || [];
+      S.access = (await Store.getMeta('access')) || ''; S.avatar = (await Store.getMeta('avatar')) || ''; applyAvatar(); S.pinned = (await Store.getMeta('pinned')) || []; S.model = (await Store.getMeta('model')) || cfg.defaultModel; S.good = (await Store.getMeta('good')) || []; S.bad = (await Store.getMeta('bad')) || [];
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
