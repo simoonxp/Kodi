@@ -272,3 +272,12 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .avbtn .cam svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #dlgAcc .prof-f .linkbtn { display: block; margin-top: 4px; }
 #accIn .row { margin-top: 10px; }
+
+/* conta logada no canto superior direito: foto + nome, menu cai logo abaixo */
+#head .acct { padding: 0; flex: none; }
+#head .accblock { width: auto; padding: 3px 12px 3px 3px; border: 1px solid var(--line); border-radius: 999px; gap: 8px; }
+#head .accblock .av { width: 32px; height: 32px; }
+#head .accblock .am-mail, #head .accblock .chev { display: none; }
+#head .accblock .am-name { max-width: 140px; font-size: 14px; }
+#head .accmenu { left: auto; right: 0; bottom: auto; top: calc(100% + 8px); width: 270px; }
+@media (max-width: 760px) { #head .accblock { padding: 3px; } #head .accblock .am-text { display: none; } }
