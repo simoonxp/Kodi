@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.1.3';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.2.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1233,12 +1233,15 @@
   let accModeNow = '';
   function accMode(m) {                      // '' = só os dois botões; 'in' = entrar; 'up' = criar conta
     accModeNow = m;
-    $('#accChoose').hidden = !!m; $('#accForm').hidden = !m;
+    $('#accChoose').hidden = !!m; $('#accOr').hidden = $('#accGoogle').hidden = !!m; $('#accForm').hidden = !m;
     $('#accLogin').hidden = m !== 'in'; $('#accSignup').hidden = m !== 'up';
     $('#accForgot').hidden = m !== 'in';
     $('#accPass').autocomplete = m === 'up' ? 'new-password' : 'current-password';
     if (m) $('#accEmail').focus();
   }
+  $('#accGoogle').addEventListener('click', () => {      // o login com Google acontece no Supabase e volta para cá já logado
+    location.href = SB.url.replace(/\/$/, '') + '/auth/v1/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
+  });
   $('#accGoIn').addEventListener('click', () => accMode('in'));
   $('#accGoUp').addEventListener('click', () => accMode('up'));
   $('#accBack').addEventListener('click', () => { accMode(''); $('#accMsg').textContent = ''; });
@@ -1323,7 +1326,7 @@
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
-    Cloud.load(); if (cloudOn && readRecoveryHash()) setTimeout(() => { openAccount(); say('accMsg', 'Escolha uma nova senha abaixo.', true); }, 300);
+    Cloud.load(); if (cloudOn && readRecoveryHash() && Cloud.recovery) setTimeout(() => { openAccount(); say('accMsg', 'Escolha uma nova senha abaixo.', true); }, 300);
     renderAccount();
     await loadChats();
     refreshUsageBadge();
