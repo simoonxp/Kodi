@@ -50,7 +50,6 @@
       </button>
       <span class="title" id="title">Nova conversa</span>
       <span class="cwd" id="cwdLabel"></span>
-      <select id="model" class="field" aria-label="Modelo de IA"></select>
       <button class="icon" id="btnAcc" aria-label="Conta" title="Conta"><svg viewBox="0 0 24 24" id="accIcon"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20c.9-3.7 3.9-5.6 7.5-5.6s6.6 1.9 7.5 5.6"/></svg></button>
     <div class="acct" id="acct" hidden>
       <div id="accMenu" class="accmenu" role="menu" hidden>
@@ -159,6 +158,8 @@
     <section>
       <h3>Modelos de IA</h3>
       <p class="muted">Nem todo modelo da lista da NVIDIA responde na sua conta. Este teste descobre quais funcionam e escolhe o mais rápido.</p>
+      <label class="muted small" for="model">Modelo usado nas conversas</label>
+      <select id="model" class="field" aria-label="Modelo de IA"></select>
       <div class="row"><button class="ghost" id="modelsTest">Testar modelos</button></div>
       <div class="msg" id="modelsMsg" role="status"></div>
       <div id="modelsList" class="mlist"></div>
