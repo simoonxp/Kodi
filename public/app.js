@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '1.12.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.0.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -37,6 +37,7 @@
   // ======================================================================
   // Armazenamento local (IndexedDB; se o navegador não permitir, fica só na memória)
   // ======================================================================
+  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
   const Store = (() => {
     let db = null;
     const mem = { chats: new Map(), msgs: new Map(), meta: new Map() };
@@ -82,8 +83,8 @@
       saveMessages: (id, messages) => put('msgs', { id, messages }),
       deleteChat: async id => { await del('chats', id); await del('msgs', id); },
       getMeta: async k => { const r = await get('meta', k); return r ? r.v : null; },
-      setMeta: (k, v) => put('meta', { k, v }),
-      delMeta: k => del('meta', k),
+      setMeta: async (k, v) => { await put('meta', { k, v }); if (SYNCED.has(k) && Store.onSetting) Store.onSetting(); },
+      delMeta: async k => { await del('meta', k); if (SYNCED.has(k) && Store.onSetting) Store.onSetting(); },
       clearAll: async () => {
         for (const s of ['chats', 'msgs', 'meta']) {
           if (!db) mem[s].clear(); else { const t = db.transaction(s, 'readwrite'); t.objectStore(s).clear(); await done(t); }
@@ -579,7 +580,7 @@
     if (!t || !t.trim()) return;
     const title = t.trim().slice(0, 80);
     try {
-      await Store.saveChat({ ...c, title });
+      await Store.saveChat({ ...c, title, updated: Date.now() }); Cloud.pushChat(c.id);
       if (S.chat && S.chat.id === c.id) { S.chat.title = title; setHead(title); }
       await loadChats();
     } catch { toast('Não consegui salvar a mudança neste aparelho.'); }
@@ -587,7 +588,7 @@
   async function deleteChat(c) {
     if (S.streaming) return;
     if (!confirm(`Apagar a conversa "${c.title}"? Isso não pode ser desfeito.`)) return;
-    try { await Store.deleteChat(c.id); if (S.chat && S.chat.id === c.id) newChat(); await loadChats(); }
+    try { await Store.deleteChat(c.id); Cloud.deleteRemote(c.id); if (S.chat && S.chat.id === c.id) newChat(); await loadChats(); }
     catch { toast('Não consegui apagar neste aparelho.'); }
   }
   $('#search').addEventListener('input', e => { S.search = e.target.value; renderList(); });
@@ -678,6 +679,7 @@
       S.chat.updated = Date.now();
       await Store.saveChat(S.chat);
       await Store.saveMessages(S.chat.id, S.messages);
+      Cloud.pushChat(S.chat.id);
     } catch { toast('Não consegui salvar neste aparelho (sem espaço?). Faça um backup e apague conversas antigas.'); }
   }
   function buildContext(list) {
@@ -936,8 +938,8 @@
     autoProbe('Chave salva. Testando quais modelos respondem na sua conta…');
   }
   function openSettings() {
-    closeDrawer(); refreshSettings(); updateInstallBox();
-    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg', 'qMsg'].forEach(i => { $('#' + i).textContent = ''; });
+    closeDrawer(); refreshSettings(); updateInstallBox(); renderAccount();
+    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg', 'qMsg', 'accMsg'].forEach(i => { $('#' + i).textContent = ''; });
     if (S.report) showReport(S.report);
     renderUsage(); loadQuotaInputs();
     $('#dlgSettings').showModal();
@@ -1032,7 +1034,7 @@
         await Store.saveChat({ id: c.id, title: String(c.title || 'Conversa').slice(0, 80), model: typeof c.model === 'string' ? c.model.slice(0, 120) : null, created: Number(c.created) || now, updated: Number(c.updated) || now });
         await Store.saveMessages(c.id, messages); n++;
       }
-      await loadChats();
+      await loadChats(); if (n) Cloud.syncAll();
       say('dataMsg', n ? `${n} conversa(s) restaurada(s).` : 'Nenhuma conversa nova neste arquivo (as que já existem aqui foram mantidas).', true);
     } catch { say('dataMsg', 'Esse arquivo não parece ser um backup deste app.', false); }
   });
@@ -1063,6 +1065,230 @@
     S.deferred = null; updateInstallBox();
   });
 
+
+  // ======================================================================
+  // Conta (Supabase): salva conversas e preferências na nuvem para qualquer aparelho.
+  // A chave da NVIDIA NUNCA é enviada: continua só neste navegador.
+  // ======================================================================
+  const SB = window.KODI_SUPABASE || {};
+  const cloudOn = !!(SB.url && SB.key);
+  const Cloud = {
+    session: null, applying: false, busy: false, timer: null, state: '', last: 0, recovery: false,
+    load() { try { this.session = JSON.parse(localStorage.getItem('kodi.session') || 'null'); } catch { this.session = null; } },
+    save(sess) { this.session = sess; try { sess ? localStorage.setItem('kodi.session', JSON.stringify(sess)) : localStorage.removeItem('kodi.session'); } catch { /* sem armazenamento */ } },
+    fromAuth(j) { return j && j.access_token ? { at: j.access_token, rt: j.refresh_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000, user: { id: j.user && j.user.id, email: j.user && j.user.email } } : null; },
+    async fresh() {
+      const se = this.session;
+      if (!se || se.exp - Date.now() > 60000) return !!se;
+      const r = await this.raw('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: se.rt }, auth: false });
+      const ns = r.ok && this.fromAuth(r.data);
+      if (ns) { this.save(ns); return true; }
+      if (r.status >= 400 && r.status < 500) { this.save(null); renderAccount(); }   // sessão vencida: precisa entrar de novo
+      return false;
+    },
+    async raw(path, { method = 'GET', body, auth = true, prefer } = {}) {
+      const headers = { apikey: SB.key, 'Content-Type': 'application/json' };
+      if (auth && this.session) headers.Authorization = 'Bearer ' + this.session.at;
+      if (prefer) headers.Prefer = prefer;
+      let res;
+      try { res = await fetch(SB.url.replace(/\/+$/, '') + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit', cache: 'no-store' }); }
+      catch { return { ok: false, status: 0, data: null }; }
+      let data = null; try { const t = await res.text(); data = t ? JSON.parse(t) : null; } catch { /* sem corpo */ }
+      return { ok: res.ok, status: res.status, data };
+    },
+    async call(path, opt = {}) { if (!(await this.fresh())) return { ok: false, status: 401, data: null }; return this.raw(path, opt); },
+    errText(r) {
+      if (r.status === 0) return 'Sem conexão com o servidor da conta. Verifique a internet.';
+      const d = r.data || {}; const code = d.error_code || d.code || ''; const msg = String(d.msg || d.error_description || d.message || d.error || '');
+      if (code === 'invalid_credentials' || /invalid login/i.test(msg)) return 'E-mail ou senha incorretos.';
+      if (code === 'user_already_exists' || /already registered/i.test(msg)) return 'Esse e-mail já tem conta. Use "Entrar".';
+      if (code === 'weak_password' || /password/i.test(msg) && /(least|weak|short)/i.test(msg)) return 'Senha fraca: use pelo menos 8 caracteres.';
+      if (code === 'email_not_confirmed') return 'Confirme seu e-mail pelo link que enviamos e tente de novo.';
+      if (/rate limit|too many|over_/i.test(code + msg) || r.status === 429) return 'Muitas tentativas. Espere alguns minutos e tente de novo.';
+      if (code === 'validation_failed' || /valid email|unable to validate email/i.test(msg)) return 'Esse e-mail não parece válido.';
+      if (code === 'signup_disabled') return 'Novos cadastros estão desativados.';
+      return 'Não deu certo' + (msg ? ': ' + msg.slice(0, 140) : ` (erro ${r.status}).`);
+    },
+    async signUp(email, password) {
+      const r = await this.raw('/auth/v1/signup', { method: 'POST', body: { email, password }, auth: false });
+      if (!r.ok) return { error: this.errText(r) };
+      const se = this.fromAuth(r.data);
+      if (!se) return { pending: true };                 // projeto exige confirmar o e-mail
+      this.save(se); return { ok: true };
+    },
+    async signIn(email, password) {
+      const r = await this.raw('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password }, auth: false });
+      const se = r.ok && this.fromAuth(r.data);
+      if (!se) return { error: this.errText(r) };
+      this.save(se); return { ok: true };
+    },
+    async signOut() { if (this.session) await this.raw('/auth/v1/logout', { method: 'POST', body: {} }); this.save(null); },
+    async forgot(email) { return this.raw('/auth/v1/recover?redirect_to=' + encodeURIComponent(location.origin), { method: 'POST', body: { email }, auth: false }); },
+    async newPassword(password) { return this.call('/auth/v1/user', { method: 'PUT', body: { password } }); },
+
+    // ---- conversas
+    async pushChat(id) {
+      if (!this.session) return;
+      try {
+        const chat = (await Store.listChats()).find(c => c.id === id); if (!chat) return;
+        const messages = await Store.getMessages(id);
+        const a = await this.call('/rest/v1/chats?on_conflict=id', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: [{ id, title: chat.title, model: chat.model || null, created: chat.created, updated: chat.updated, deleted: false }] });
+        if (!a.ok) throw new Error('chat');
+        const b = await this.call('/rest/v1/chat_messages?on_conflict=id', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: [{ id, messages, updated: chat.updated }] });
+        if (!b.ok) throw new Error('msgs');
+        this.mark('ok');
+      } catch { this.mark('error'); }
+    },
+    async deleteRemote(id) {
+      if (!this.session) return;
+      const a = await this.call('/rest/v1/chats?id=eq.' + encodeURIComponent(id), { method: 'PATCH', prefer: 'return=minimal', body: { deleted: true, updated: Date.now() } });
+      await this.call('/rest/v1/chat_messages?id=eq.' + encodeURIComponent(id), { method: 'DELETE', prefer: 'return=minimal' });
+      this.mark(a.ok ? 'ok' : 'error');
+    },
+    mark(state) { this.state = state; if (state === 'ok') this.last = Date.now(); renderAccount(); },
+    async syncAll({ quiet = true } = {}) {
+      if (!this.session || this.busy || S.streaming) return;
+      this.busy = true; this.mark('syncing'); let pulled = 0, pushed = 0;
+      try {
+        const rem = await this.call('/rest/v1/chats?select=id,title,model,created,updated,deleted&order=updated.desc&limit=2000');
+        if (!rem.ok || !Array.isArray(rem.data)) throw new Error('lista');
+        const local = await Store.listChats(); const lmap = new Map(local.map(c => [c.id, c])); const rmap = new Map(rem.data.map(c => [c.id, c]));
+        for (const r of rem.data) {
+          const l = lmap.get(r.id);
+          if (r.deleted) { if (l) { await Store.deleteChat(r.id); pulled++; } continue; }
+          if (!l || r.updated > l.updated) {
+            const m = await this.call('/rest/v1/chat_messages?select=messages&id=eq.' + encodeURIComponent(r.id));
+            if (!m.ok || !Array.isArray(m.data)) throw new Error('msgs');
+            const messages = Array.isArray(m.data[0] && m.data[0].messages) ? m.data[0].messages.filter(x => x && (x.role === 'user' || x.role === 'assistant') && typeof x.content === 'string') : [];
+            await Store.saveChat({ id: r.id, title: String(r.title || 'Conversa').slice(0, 80), model: r.model || null, created: Number(r.created) || Date.now(), updated: Number(r.updated) || Date.now() });
+            await Store.saveMessages(r.id, messages); pulled++;
+          } else if (l.updated > r.updated) { await this.pushChat(r.id); pushed++; }
+        }
+        for (const l of local) if (!rmap.has(l.id)) { await this.pushChat(l.id); pushed++; }
+        await this.syncSettings();
+        this.mark('ok');
+        if (pulled) { await loadChats(); if (S.chat && !S.chats.some(c => c.id === S.chat.id) && !S.streaming) newChat(); }
+        if (!quiet || pulled || pushed) toast(pulled || pushed ? `Sincronizado (${pulled} recebida(s), ${pushed} enviada(s)).` : 'Tudo sincronizado.');
+      } catch { this.mark('error'); if (!quiet) toast('Não consegui sincronizar agora. Tento de novo em instantes.'); }
+      finally { this.busy = false; renderAccount(); }
+    },
+
+    // ---- preferências
+    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage') }; },
+    touch() {
+      if (this.applying) return;
+      Store.setMeta('settingsUpdated', Date.now()).catch(() => {});
+      if (!this.session) return;
+      clearTimeout(this.timer); this.timer = setTimeout(() => this.pushSettings(), 2500);
+    },
+    async pushSettings() {
+      if (!this.session) return;
+      const updated = Number(await Store.getMeta('settingsUpdated')) || Date.now();
+      const r = await this.call('/rest/v1/user_settings?on_conflict=user_id', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: [{ data: await this.settingsPayload(), updated }] });
+      this.mark(r.ok ? 'ok' : 'error');
+    },
+    async syncSettings() {
+      const r = await this.call('/rest/v1/user_settings?select=data,updated');
+      if (!r.ok || !Array.isArray(r.data)) throw new Error('settings');
+      const remote = r.data[0]; const mine = Number(await Store.getMeta('settingsUpdated')) || 0;
+      if (remote && Number(remote.updated) > mine && remote.data && typeof remote.data === 'object') {
+        this.applying = true;
+        try {
+          for (const k of SYNCED) {
+            const v = remote.data[k];
+            if (v === undefined || v === null) continue;
+            await Store.setMeta(k, v);
+          }
+          await Store.setMeta('settingsUpdated', Number(remote.updated));
+          if (typeof remote.data.model === 'string') S.model = remote.data.model;
+          if (Array.isArray(remote.data.good)) S.good = remote.data.good;
+          if (Array.isArray(remote.data.bad)) S.bad = remote.data.bad;
+        } finally { this.applying = false; }
+        fillModels(S.models); refreshUsageBadge();
+      } else if (!remote || mine > Number(remote.updated)) await this.pushSettings();
+    },
+  };
+  Store.onSetting = () => Cloud.touch();
+
+  function renderAccount() {
+    const box = $('#accBox'); if (!box) return;
+    const on = cloudOn;
+    $('#accOff').hidden = on; $('#accOut').hidden = !on || !!Cloud.session; $('#accIn').hidden = !on || !Cloud.session;
+    $('#accRec').hidden = !(on && Cloud.recovery && Cloud.session);
+    if (!on) { $('#accStatus').textContent = 'Contas ainda não estão ativadas neste site. Suas conversas ficam só neste aparelho.'; return; }
+    if (!Cloud.session) { $('#accStatus').textContent = 'Você não está logado. Sem conta, as conversas ficam só neste aparelho.'; return; }
+    const st = Cloud.state === 'syncing' ? 'sincronizando…' : Cloud.state === 'error' ? 'erro ao sincronizar (vou tentar de novo)' : Cloud.last ? 'sincronizado às ' + new Date(Cloud.last).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'aguardando sincronização';
+    $('#accStatus').textContent = `Logado como ${Cloud.session.user.email} · ${st}`;
+  }
+  function accBusy(on) { $$('#accBox button').forEach(b => { b.disabled = on; }); }
+  async function afterLogin(msg) {
+    renderAccount(); say('accMsg', msg, true); $('#accPass').value = '';
+    await Cloud.syncAll({ quiet: false });
+  }
+  const accCreds = () => ({ email: $('#accEmail').value.trim(), pass: $('#accPass').value });
+  $('#accLogin').addEventListener('click', async () => {
+    const { email, pass } = accCreds(); if (!email || !pass) return say('accMsg', 'Preencha e-mail e senha.', false);
+    accBusy(true); try { const r = await Cloud.signIn(email, pass); if (r.error) say('accMsg', r.error, false); else await afterLogin('Você entrou. Conversas deste aparelho também foram salvas na conta.'); } finally { accBusy(false); }
+  });
+  $('#accSignup').addEventListener('click', async () => {
+    const { email, pass } = accCreds();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return say('accMsg', 'Digite um e-mail válido.', false);
+    if (pass.length < 8) return say('accMsg', 'A senha precisa ter pelo menos 8 caracteres.', false);
+    accBusy(true);
+    try {
+      const r = await Cloud.signUp(email, pass);
+      if (r.error) say('accMsg', r.error, false);
+      else if (r.pending) say('accMsg', 'Conta criada! Enviamos um e-mail de confirmação: clique no link e depois use "Entrar".', true);
+      else await afterLogin('Conta criada! Suas conversas deste aparelho foram salvas na conta.');
+    } finally { accBusy(false); }
+  });
+  $('#accForgot').addEventListener('click', async () => {
+    const { email } = accCreds(); if (!/^\S+@\S+\.\S+$/.test(email)) return say('accMsg', 'Digite seu e-mail acima e clique de novo.', false);
+    accBusy(true); try { const r = await Cloud.forgot(email); say('accMsg', r.ok ? 'Se esse e-mail tiver conta, enviamos um link para criar uma nova senha.' : Cloud.errText(r), r.ok); } finally { accBusy(false); }
+  });
+  $('#accSavePw').addEventListener('click', async () => {
+    const pw = $('#accNewPw').value; if (pw.length < 8) return say('accMsg', 'A senha precisa ter pelo menos 8 caracteres.', false);
+    accBusy(true); try { const r = await Cloud.newPassword(pw); if (r.ok) { Cloud.recovery = false; $('#accNewPw').value = ''; renderAccount(); say('accMsg', 'Senha alterada.', true); } else say('accMsg', Cloud.errText(r), false); } finally { accBusy(false); }
+  });
+  $('#accSync').addEventListener('click', async () => { accBusy(true); try { await Cloud.syncAll({ quiet: false }); } finally { accBusy(false); } });
+  $('#accLogout').addEventListener('click', async () => {
+    if (!confirm('Sair da conta neste aparelho?')) return;
+    const wipe = confirm('Apagar também as conversas guardadas neste aparelho? (recomendado em computador compartilhado)\n\nOK = apagar daqui (continuam salvas na conta)\nCancelar = manter aqui');
+    await Cloud.signOut();
+    if (wipe) { try { for (const c of await Store.listChats()) await Store.deleteChat(c.id); } catch { /* segue */ } await loadChats(); newChat(); }
+    renderAccount(); say('accMsg', 'Você saiu da conta.', true);
+  });
+  $('#accWipeCloud').addEventListener('click', async () => {
+    if (!confirm('Apagar TODAS as suas conversas e preferências guardadas na nuvem? As cópias deste aparelho continuam. Isso não pode ser desfeito.')) return;
+    accBusy(true);
+    try {
+      const uid = encodeURIComponent(Cloud.session.user.id); let ok = true;
+      for (const t of ['chat_messages', 'chats', 'user_settings']) { const r = await Cloud.call(`/rest/v1/${t}?user_id=eq.${uid}`, { method: 'DELETE', prefer: 'return=minimal' }); ok = ok && r.ok; }
+      say('accMsg', ok ? 'Seus dados na nuvem foram apagados.' : 'Não consegui apagar tudo. Tente de novo.', ok);
+    } finally { accBusy(false); }
+  });
+  $('#accDelete').addEventListener('click', async () => {
+    if (!confirm('EXCLUIR sua conta e todos os dados dela na nuvem? Isso não pode ser desfeito.')) return;
+    if (prompt('Para confirmar, digite EXCLUIR:') !== 'EXCLUIR') return;
+    accBusy(true);
+    try {
+      const r = await Cloud.call('/rest/v1/rpc/delete_my_account', { method: 'POST', body: {} });
+      if (r.ok) { Cloud.save(null); renderAccount(); say('accMsg', 'Conta excluída. Suas conversas continuam neste aparelho.', true); }
+      else say('accMsg', 'Não consegui excluir a conta agora. Tente de novo ou peça a exclusão pelo contato do site.', false);
+    } finally { accBusy(false); }
+  });
+  function readRecoveryHash() {                       // link do e-mail "esqueci a senha" volta com a sessão no endereço
+    const h = location.hash.replace(/^#/, ''); if (!h.includes('access_token')) return false;
+    const p = new URLSearchParams(h); const se = Cloud.fromAuth({ access_token: p.get('access_token'), refresh_token: p.get('refresh_token'), expires_in: p.get('expires_in') });
+    history.replaceState(null, '', location.pathname + location.search);
+    if (!se) return false;
+    Cloud.save({ ...se, user: se.user.id ? se.user : { id: '', email: '' } });
+    if (p.get('type') === 'recovery') Cloud.recovery = true;
+    if (!se.user.id) fetch(SB.url.replace(/\/$/, '') + '/auth/v1/user', { headers: { apikey: SB.key, Authorization: 'Bearer ' + se.at } })
+      .then(r => r.ok ? r.json() : null).then(u => { if (u && u.id && Cloud.session) { Cloud.save({ ...Cloud.session, user: { id: u.id, email: u.email } }); renderAccount(); } }).catch(() => {});
+    return true;
+  }
+
   // ---------- início ----------
   async function boot() {
     try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); }
@@ -1075,9 +1301,12 @@
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
+    Cloud.load(); if (cloudOn && readRecoveryHash()) setTimeout(() => { openSettings(); say('accMsg', 'Escolha uma nova senha abaixo.', true); }, 300);
+    renderAccount();
     await loadChats();
     refreshUsageBadge();
     newChat();
+    if (cloudOn && Cloud.session) Cloud.syncAll();
     if (S.key) {
       if (!S.conn) { const r = await detectConn(S.key); if (r.conn) { S.conn = r.conn; await Store.setMeta('conn', r.conn); updateComposer(); } }
       loadModels();
@@ -1085,7 +1314,8 @@
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !S.streaming) { if (S.mode === 'chat') loadChats(); else if (S.codeMode) loadCodeSessions(); }
+    if (document.visibilityState === 'visible' && !S.streaming) { if (S.mode === 'chat') loadChats(); else if (S.codeMode) loadCodeSessions(); if (cloudOn) Cloud.syncAll(); }
   });
+  setInterval(() => { if (cloudOn && Cloud.session && document.visibilityState === 'visible' && !S.streaming) Cloud.syncAll(); }, 60000);
   boot();
 })();

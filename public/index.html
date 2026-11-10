@@ -66,6 +66,26 @@
 <dialog id="dlgSettings">
   <div class="dlg-head"><h2>Configurações</h2><button class="icon" data-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="dlg-body">
+    <section id="accBox">
+      <h3>Conta</h3>
+      <p id="accStatus" class="muted"></p>
+      <p id="accOff" class="muted small" hidden>O dono do site ainda não ativou as contas.</p>
+      <div id="accOut" hidden>
+        <input id="accEmail" type="email" class="field" placeholder="Seu e-mail" autocomplete="email" spellcheck="false">
+        <input id="accPass" type="password" class="field" placeholder="Senha (mínimo 8 caracteres)" autocomplete="current-password">
+        <div class="row"><button class="primary" id="accLogin">Entrar</button><button class="ghost" id="accSignup">Criar conta</button><button class="ghost" id="accForgot">Esqueci a senha</button></div>
+      </div>
+      <div id="accRec" hidden>
+        <input id="accNewPw" type="password" class="field" placeholder="Nova senha (mínimo 8 caracteres)" autocomplete="new-password">
+        <div class="row"><button class="primary" id="accSavePw">Salvar nova senha</button></div>
+      </div>
+      <div id="accIn" hidden>
+        <div class="row"><button class="ghost" id="accSync">Sincronizar agora</button><button class="ghost" id="accLogout">Sair</button></div>
+        <div class="row"><button class="ghost danger" id="accWipeCloud">Apagar meus dados da nuvem</button><button class="ghost danger" id="accDelete">Excluir minha conta</button></div>
+      </div>
+      <div class="msg" id="accMsg" role="status"></div>
+      <p class="muted small">Com conta, suas conversas e preferências ficam salvas no servidor, ligadas ao seu e-mail, e aparecem em qualquer aparelho. <b>A chave da NVIDIA nunca é enviada</b>: continua só neste navegador, e você cola de novo em cada aparelho. Sem conta, tudo continua só neste aparelho.</p>
+    </section>
     <section>
       <h3>Sua chave da NVIDIA</h3>
       <p id="keyStatus" class="muted"></p>
@@ -113,7 +133,8 @@
     </section>
     <section>
       <h3>Seus dados</h3>
-      <p class="muted">Suas conversas e sua chave ficam <b>só neste aparelho</b>, dentro do navegador. Não existe conta nem cópia em nenhum servidor, e ninguém, nem quem hospeda o app, consegue ver o que você guarda aqui. Se você limpar os dados do navegador ou trocar de aparelho, as conversas somem. Por isso, faça backup de vez em quando.</p>
+      <p class="muted"><a href="/privacidade.html" target="_blank" rel="noopener">Política de privacidade</a></p>
+      <p class="muted">Sua chave da NVIDIA fica <b>só neste aparelho</b>. As conversas ficam neste navegador e, se você estiver logado, também na sua conta. Sem conta, ao limpar os dados do navegador ou trocar de aparelho as conversas somem, então faça backup de vez em quando.</p>
       <div class="row">
         <button class="ghost" id="btnBackup">Fazer backup</button>
         <button class="ghost" id="btnRestore">Restaurar backup</button>
@@ -132,6 +153,7 @@
 </dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="/supabase-config.js"></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

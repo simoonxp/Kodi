@@ -39,7 +39,7 @@ O Kodi é um aplicativo web de conversas com IA, feito para ser usado por mim e 
 ## Tecnologias
 
 <p>
-  <img src="https://skillicons.dev/icons?i=html,css,js,nodejs,cloudflare" alt="Tecnologias do projeto">
+  <img src="https://skillicons.dev/icons?i=html,css,js,nodejs,cloudflare,supabase" alt="Tecnologias do projeto">
 </p>
 
 ## Estrutura
