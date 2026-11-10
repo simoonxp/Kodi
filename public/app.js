@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.6.3';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.7.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -169,7 +169,7 @@
     const s = res.status;
     if (j && j.code === 'access') return friendly('O código de acesso do servidor está incorreto.');
     if (s === 401 || s === 403) return friendly('A chave da NVIDIA é inválida, expirou ou não tem acesso a este modelo. Confira em Configurações.');
-    if (s === 404) return friendly(`O modelo ${S.model} não está disponível para a sua conta. Escolha outro no seletor lá em cima.`, 'model404');
+    if (s === 404) return friendly(`O modelo ${S.model} não está disponível para a sua conta. Escolha outro em Configurações, na seção Modelos de IA.`, 'model404');
     if (s === 413) return friendly('Mensagem grande demais.');
     if (s === 429) return friendly('Você atingiu o limite de uso. Espere um pouco e tente de novo.');
     if (s >= 500) return friendly(S.conn === 'relay' && j && j.error ? j.error : `A NVIDIA está com problemas agora (erro ${s}). Tente de novo em instantes.`);
@@ -391,12 +391,13 @@
       if (rs) { this.think.hidden = false; this.thinkBody.textContent = rs; }
       this.txt.innerHTML = md(body);
     }
-    finish(info = '', tip = '') {
+    finish(info = '', tip = '', model = '') {
       const took = this.iv ? Date.now() - this.t0 : 0;
       this.stopClock(); this.render();
       if (!this.raw.trim()) return;
       const a = document.createElement('div'); a.className = 'actions';
       a.innerHTML = '<button type="button" class="copyall">Copiar resposta</button>' + (took || info ? `<span class="took" title="${esc(tip)}">${[took ? fmtSecs(took) : '', info].filter(Boolean).join(' · ')}</span>` : '');
+      if (model) { const t = document.createElement('span'); t.className = 'mtag'; t.textContent = shortModel(model); t.title = 'Respondido por ' + model; a.appendChild(t); }
       this.el.appendChild(a);
     }
     remove() { this.stopClock(); this.el.remove(); }
@@ -471,7 +472,12 @@
     const pick = !all.length || all.includes(cur) ? cur : (S.good[0] || bestModel(list));
     const ids = [...new Set([pick, ...S.good, ...list])];
     sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${S.good.includes(id) ? '✓ ' : ''}${esc(id)}</option>`).join('') + '<option value="__custom">Outro modelo (digitar o nome)…</option>';
-    sel.value = pick; S.model = pick;
+    sel.value = pick; S.model = pick; updateModelChip();
+  }
+  function updateModelChip() {                       // mostra no topo qual modelo da NVIDIA está em uso
+    const c = $('#modelChip'); if (!c) return;
+    c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = shortModel(S.model);
+    c.title = 'Modelo de IA em uso: ' + S.model + '. Clique para trocar';
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
   let probing = false;
@@ -638,7 +644,7 @@
     S.mode = mode;
     $$('#modeTabs button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
     $('#folder').hidden = mode !== 'code';
-    $('#model').hidden = mode !== 'chat';
+    $('#model').hidden = mode !== 'chat'; updateModelChip();
     S.search = ''; $('#search').value = '';
     newChat();
     if (mode === 'code') loadCodeSessions(); else renderList();
@@ -679,7 +685,7 @@
     if (chat.model && (!S.models.length || S.models.includes(chat.model))) { S.model = chat.model; fillModels(S.models); }
     msgs.innerHTML = '';
     for (const m of S.messages) {
-      if (m.role === 'user') addUser(m.content); else { const v = new AsstView(); v.set(m.content); v.finish(usageLabel(m.usage), usageTip(m.usage)); }
+      if (m.role === 'user') addUser(m.content); else { const v = new AsstView(); v.set(m.content); v.finish(usageLabel(m.usage), usageTip(m.usage), m.model); }
     }
     scrollDown(true);
   }
@@ -753,7 +759,7 @@
         }
       }
     } catch (e) {
-      failed = e.code === 'model404' && tried.length > 1 ? `Tentei ${tried.length} modelos e nenhum está disponível para a sua conta. Escolha um no seletor lá em cima.` : e.friendly ? e.message : 'Erro inesperado: ' + (e && e.message ? e.message : e);
+      failed = e.code === 'model404' && tried.length > 1 ? `Tentei ${tried.length} modelos e nenhum está disponível para a sua conta. Escolha um em Configurações, na seção Modelos de IA.` : e.friendly ? e.message : 'Erro inesperado: ' + (e && e.message ? e.message : e);
       failCode = e.code;
       if (!e.friendly) console.error(e);
     } finally { setStreaming(false); S.abort = null; }
@@ -763,7 +769,7 @@
     if (got) {
       if (!usage) usage = { p: estTokens(ctxChars), c: estTokens(got.length + view.reasoning.length), est: true };   // a NVIDIA não informou: estimativa
       S.messages.push({ role: 'assistant', content: got, t: Date.now(), model: S.model, usage });
-      view.finish(usageLabel(usage), usageTip(usage));
+      view.finish(usageLabel(usage), usageTip(usage), S.model);
       addUsage(S.model, usage.p, usage.c, !!usage.est);
       Store.setMeta('model', S.model).catch(() => {});
     } else {                                         // nada foi gerado: desfaz a mensagem e devolve o texto à caixa
@@ -1047,6 +1053,7 @@
     await Store.delMeta('usage'); await Store.delMeta('quota'); renderUsage(); loadQuotaInputs(); refreshUsageBadge();
   });
   $('#usageToday').addEventListener('click', openSettings);
+  $('#modelChip').addEventListener('click', () => { openSettings(); setTimeout(() => { const m = $('#model'); m.scrollIntoView({ block: 'center' }); m.focus(); }, 80); });
 
   // backup e restauração (a única forma de levar as conversas para outro aparelho)
   $('#btnBackup').addEventListener('click', async () => {
@@ -1245,7 +1252,7 @@
             await Store.setMeta(k, v);
           }
           await Store.setMeta('settingsUpdated', Number(remote.updated));
-          if (typeof remote.data.model === 'string') S.model = remote.data.model;
+          if (typeof remote.data.model === 'string') { S.model = remote.data.model; updateModelChip(); }
           if (Array.isArray(remote.data.good)) S.good = remote.data.good;
           if (Array.isArray(remote.data.bad)) S.bad = remote.data.bad;
           if (typeof remote.data.avatar === 'string') { S.avatar = remote.data.avatar; applyAvatar(); }
