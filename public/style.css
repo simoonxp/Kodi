@@ -293,3 +293,4 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .item .acts button svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .item .acts button.on svg { fill: currentColor; }
 #search[hidden] { display: none; }
+.usage[hidden] { display: none !important; }
