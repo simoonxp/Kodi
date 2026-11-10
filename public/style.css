@@ -211,3 +211,6 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 #btnAcc { border: 1.5px solid var(--line); border-radius: 50%; }
 #btnAcc.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 #accInit { font-weight: 700; font-size: 15px; line-height: 1; }
+/* Conta: abre como um menu logo abaixo do ícone, no canto superior direito */
+#dlgAcc { position: fixed; margin: 0; inset: 56px 12px auto auto; width: min(340px, calc(100% - 24px)); max-height: calc(100dvh - 72px); box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+#dlgAcc::backdrop { background: transparent; }

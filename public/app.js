@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.1.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.1.1';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -942,6 +942,7 @@
     if (!$('#dlgAcc').open) $('#dlgAcc').showModal();
   }
   $('#btnAcc').addEventListener('click', openAccount);
+  $('#dlgAcc').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
   function openSettings() {
     closeDrawer(); refreshSettings(); updateInstallBox(); renderAccount();
     ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg', 'qMsg'].forEach(i => { $('#' + i).textContent = ''; });
