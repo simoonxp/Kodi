@@ -50,6 +50,7 @@
       <span class="title" id="title">Nova conversa</span>
       <span class="cwd" id="cwdLabel"></span>
       <select id="model" class="field" aria-label="Modelo de IA"></select>
+      <button class="icon" id="btnAcc" aria-label="Conta" title="Conta"><svg viewBox="0 0 24 24" id="accIcon"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20c.9-3.7 3.9-5.6 7.5-5.6s6.6 1.9 7.5 5.6"/></svg><span id="accInit" hidden></span></button>
     </header>
     <div id="scroll"><div id="msgs"></div></div>
     <div id="comp">
@@ -62,13 +63,12 @@
   </section>
 </div>
 
-<!-- ============ CONFIGURAÇÕES ============ -->
-<dialog id="dlgSettings">
-  <div class="dlg-head"><h2>Configurações</h2><button class="icon" data-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<!-- ============ CONTA ============ -->
+<dialog id="dlgAcc">
+  <div class="dlg-head"><h2>Conta</h2><button class="icon" data-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="dlg-body">
     <section id="accBox">
-      <h3>Conta</h3>
-      <p id="accStatus" class="muted"></p>
+            <p id="accStatus" class="muted"></p>
       <p id="accOff" class="muted small" hidden>O dono do site ainda não ativou as contas.</p>
       <div id="accOut" hidden>
         <input id="accEmail" type="email" class="field" placeholder="Seu e-mail" autocomplete="email" spellcheck="false">
@@ -86,6 +86,13 @@
       <div class="msg" id="accMsg" role="status"></div>
       <p class="muted small">Com conta, suas conversas e preferências ficam salvas no servidor, ligadas ao seu e-mail, e aparecem em qualquer aparelho. <b>A chave da NVIDIA nunca é enviada</b>: continua só neste navegador, e você cola de novo em cada aparelho. Sem conta, tudo continua só neste aparelho.</p>
     </section>
+  </div>
+</dialog>
+
+<!-- ============ CONFIGURAÇÕES ============ -->
+<dialog id="dlgSettings">
+  <div class="dlg-head"><h2>Configurações</h2><button class="icon" data-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="dlg-body">
     <section>
       <h3>Sua chave da NVIDIA</h3>
       <p id="keyStatus" class="muted"></p>

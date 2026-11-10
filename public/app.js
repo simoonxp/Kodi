@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.0.1';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.1.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -433,7 +433,7 @@
         <li>Cole a chave abaixo.</li></ol>
         <div class="row"><input class="field" id="wKey" type="password" placeholder="nvapi-…" autocomplete="off" spellcheck="false"><button class="primary" id="wKeySave">Salvar</button></div>
         <div class="err" id="wErr"></div>
-        <p class="muted small">Aqui não existe conta nem login. Sua chave e suas conversas ficam guardadas só neste aparelho, no navegador, e o uso conta na sua própria conta da NVIDIA.</p>`;
+        <p class="muted small">Sua chave da NVIDIA fica guardada só neste aparelho, no navegador, e o uso conta na sua própria conta da NVIDIA. Para salvar suas conversas em qualquer aparelho, crie uma conta no ícone no canto superior direito.</p>`;
       w.appendChild(s);
       const save = async () => {
         const btn = $('#wKeySave'); btn.disabled = true; btn.textContent = 'Conferindo…'; $('#wErr').textContent = '';
@@ -937,9 +937,14 @@
     if (!S.chat && S.mode === 'chat') welcome();
     autoProbe('Chave salva. Testando quais modelos respondem na sua conta…');
   }
+  function openAccount() {
+    closeDrawer(); renderAccount(); $('#accMsg').textContent = '';
+    if (!$('#dlgAcc').open) $('#dlgAcc').showModal();
+  }
+  $('#btnAcc').addEventListener('click', openAccount);
   function openSettings() {
     closeDrawer(); refreshSettings(); updateInstallBox(); renderAccount();
-    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg', 'qMsg', 'accMsg'].forEach(i => { $('#' + i).textContent = ''; });
+    ['keyMsg', 'connMsg', 'dataMsg', 'modelsMsg', 'qMsg'].forEach(i => { $('#' + i).textContent = ''; });
     if (S.report) showReport(S.report);
     renderUsage(); loadQuotaInputs();
     $('#dlgSettings').showModal();
@@ -1212,6 +1217,10 @@
 
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
+    const lg = cloudOn && !!Cloud.session;
+    $('#accIcon').hidden = lg; $('#accInit').hidden = !lg; $('#btnAcc').classList.toggle('on', lg);
+    $('#accInit').textContent = lg ? ((Cloud.session.user.email || '?')[0] || '?').toUpperCase() : '';
+    $('#btnAcc').title = lg ? 'Conta: ' + Cloud.session.user.email : 'Entrar ou criar conta';
     const on = cloudOn;
     $('#accOff').hidden = on; $('#accOut').hidden = !on || !!Cloud.session; $('#accIn').hidden = !on || !Cloud.session;
     $('#accRec').hidden = !(on && Cloud.recovery && Cloud.session);
@@ -1301,7 +1310,7 @@
     } catch { /* começa vazio */ }
     try { S.codeMode = (await api('/api/local')).code; } catch { S.codeMode = false; }
     if (S.codeMode) { try { S.codeCfg = await api('/api/code/config'); $('#modeTabs').hidden = false; } catch { S.codeMode = false; } }
-    Cloud.load(); if (cloudOn && readRecoveryHash()) setTimeout(() => { openSettings(); say('accMsg', 'Escolha uma nova senha abaixo.', true); }, 300);
+    Cloud.load(); if (cloudOn && readRecoveryHash()) setTimeout(() => { openAccount(); say('accMsg', 'Escolha uma nova senha abaixo.', true); }, 300);
     renderAccount();
     await loadChats();
     refreshUsageBadge();
