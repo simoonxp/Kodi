@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.1.1';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.1.2';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -938,7 +938,7 @@
     autoProbe('Chave salva. Testando quais modelos respondem na sua conta…');
   }
   function openAccount() {
-    closeDrawer(); renderAccount(); $('#accMsg').textContent = '';
+    closeDrawer(); accModeNow = ''; renderAccount(); $('#accMsg').textContent = '';
     if (!$('#dlgAcc').open) $('#dlgAcc').showModal();
   }
   $('#btnAcc').addEventListener('click', openAccount);
@@ -1226,10 +1226,22 @@
     $('#accOff').hidden = on; $('#accOut').hidden = !on || !!Cloud.session; $('#accIn').hidden = !on || !Cloud.session;
     $('#accRec').hidden = !(on && Cloud.recovery && Cloud.session);
     if (!on) { $('#accStatus').textContent = 'Contas ainda não estão ativadas neste site. Suas conversas ficam só neste aparelho.'; return; }
-    if (!Cloud.session) { $('#accStatus').textContent = 'Você não está logado. Sem conta, as conversas ficam só neste aparelho.'; return; }
+    if (!Cloud.session) { $('#accStatus').textContent = ''; accMode(accModeNow); return; }
     const st = Cloud.state === 'syncing' ? 'sincronizando…' : Cloud.state === 'error' ? 'erro ao sincronizar (vou tentar de novo)' : Cloud.last ? 'sincronizado às ' + new Date(Cloud.last).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'aguardando sincronização';
     $('#accStatus').textContent = `Logado como ${Cloud.session.user.email} · ${st}`;
   }
+  let accModeNow = '';
+  function accMode(m) {                      // '' = só os dois botões; 'in' = entrar; 'up' = criar conta
+    accModeNow = m;
+    $('#accChoose').hidden = !!m; $('#accForm').hidden = !m;
+    $('#accLogin').hidden = m !== 'in'; $('#accSignup').hidden = m !== 'up';
+    $('#accForgot').hidden = m !== 'in';
+    $('#accPass').autocomplete = m === 'up' ? 'new-password' : 'current-password';
+    if (m) $('#accEmail').focus();
+  }
+  $('#accGoIn').addEventListener('click', () => accMode('in'));
+  $('#accGoUp').addEventListener('click', () => accMode('up'));
+  $('#accBack').addEventListener('click', () => { accMode(''); $('#accMsg').textContent = ''; });
   function accBusy(on) { $$('#accBox button').forEach(b => { b.disabled = on; }); }
   async function afterLogin(msg) {
     renderAccount(); say('accMsg', msg, true); $('#accPass').value = '';
