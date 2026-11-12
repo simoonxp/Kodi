@@ -346,3 +346,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 @media (max-width: 700px) { #pet { width: 72px; height: 66px; right: 8px; bottom: 88px; } #pet::before { background-size: 576px 396px; background-position-y: calc(var(--row, 0) * -66px); animation-name: petfm; } }
 @keyframes petfm { to { background-position-x: -576px; } }
 @media (prefers-reduced-motion: reduce) { #pet::before { animation: none; } }
+
+/* esconder a barra lateral (só no computador): o chat ocupa a tela toda */
+.only-desktop { display: grid; }
+#btnShowSide { display: none; }
+@media (min-width: 761px) { body.noside #side { display: none; } body.noside #btnShowSide { display: grid; } }
+@media (max-width: 760px) { .only-desktop { display: none !important; } }
+.brand #btnHideSide { margin-left: 0; }
