@@ -1,7 +1,7 @@
 // Service worker: só guarda os arquivos do app (abre mais rápido e permite instalar).
 // Nunca guarda nada de /api/ nem de /relay/: nenhuma conversa passa pelo cache.
-const CACHE = 'kodi-shell-v46';
-const SHELL = ['/', '/style.css', '/app.js', '/icon.svg', '/icon-192.png', '/mascote.png'];
+const CACHE = 'kodi-shell-v47';
+const SHELL = ['/', '/style.css', '/app.js', '/icon.svg', '/icon-192.png', '/mascote.png', '/mascot.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

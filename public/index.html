@@ -34,6 +34,7 @@
     </div>
     <div id="list"></div>
     <button class="usage" id="usageToday" hidden type="button" title="Ver detalhes"><span class="qhead"><b>Créditos do mês</b><b id="qpct">0%</b></span><span class="qbar"><i id="qfill"></i></span><span id="qtext">…</span><span id="usageTokens" class="qsub">Hoje: 0 tokens</span></button>
+    <div id="petSlot"></div>
     <div class="side-foot">
       <div class="credit">Feito por Felipe Simon</div>
       <button id="btnSettings" class="userbtn" aria-label="Configurações">
@@ -170,8 +171,11 @@
     </section>
     <section>
       <h3>Mascote</h3>
-      <p class="muted">O camaleão no canto da tela reage ao chat: pensa enquanto a IA responde, comemora quando termina, fica cinza se der erro e dorme quando você some. Clique nele para ver ele pular.</p>
+      <p class="muted">O camaleão mora na borda da caixa de mensagem (ou na barra lateral, quando ela está aberta). Os olhos seguem o mouse, ele muda de cor conforme a IA em uso, pega a mosquinha quando a resposta termina e reage a carinho, erro e sono. Clique, dê dois cliques ou arraste e solte.</p>
       <label class="row" style="gap:10px;align-items:center"><input type="checkbox" id="petOn"> Mostrar o mascote</label>
+      <label class="row" style="gap:10px;align-items:center"><input type="checkbox" id="petTalk"> Balões de fala</label>
+      <p class="muted small" style="margin:12px 0 6px">Acessórios (liberados conforme você usa)</p>
+      <div id="petAcc" class="accrow"></div>
     </section>
     <section>
       <h3>Seus dados</h3>
@@ -196,6 +200,7 @@
 
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="/supabase-config.js"></script>
+<script src="/mascot.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.11.2';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.12.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -538,6 +538,7 @@
     const c = $('#modelChip'); if (!c) return;
     c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model); aiIcon(S.model, $('#modelChipIc'));
     c.title = 'IA em uso: ' + aiName(S.model) + ' (' + S.model + '). Clique para trocar';
+    if (window.Pet && S.model) Pet.setColor(aiInfo(S.model).color);
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
   let probing = false;
@@ -775,27 +776,6 @@
   }
 
 
-  // ---- Mascote: camaleão em pixel art no canto; reage ao chat (pensa, comemora, erra, dorme) ----
-  const PET_ROW = { idle: 0, think: 1, need: 2, ready: 3, block: 4, sleep: 5 };
-  const Pet = {
-    el: null, timer: null, sleepT: null, errAt: 0,
-    init() {
-      this.el = document.createElement('button'); this.el.id = 'pet'; this.el.type = 'button'; this.el.setAttribute('aria-label', 'Mascote do Kodi');
-      this.el.title = 'Mascote do Kodi'; this.el.addEventListener('click', () => this.set('need', 1400));
-      document.body.appendChild(this.el); this.show(lsGet('kodi.pet') !== '0'); this.set('idle');
-    },
-    show(on) { if (this.el) this.el.hidden = !on; lsSet('kodi.pet', on ? '1' : '0'); },
-    set(state, ms = 0) {
-      if (!this.el) return;
-      clearTimeout(this.timer); clearTimeout(this.sleepT);
-      this.el.dataset.state = state; this.el.style.setProperty('--row', PET_ROW[state] ?? 0);
-      if (ms) this.timer = setTimeout(() => this.set('idle'), ms);
-      else if (state === 'idle') this.sleepT = setTimeout(() => this.set('sleep'), 120000);
-    },
-    busy(on) { if (on) this.set('think'); else if (Date.now() - this.errAt > 1500) this.set('ready', 2600); },
-    fail() { this.errAt = Date.now(); this.set('block', 3200); },
-  };
-
   function setStreaming(on) {
     S.streaming = on; Pet.busy(on);
     const b = $('#send');
@@ -997,6 +977,8 @@
     if (S.streaming) { S.abort && S.abort.abort(); return; }
     const text = $('#inp').value.trim();
     if (!text) return;
+    if (/^\/(dan[cç]ar|dance)$/i.test(text)) { $('#inp').value = ''; Pet.dance(); return; }   // segredinho do mascote
+    Pet.sent();
     (S.mode === 'code' ? sendCode : sendChat)(text);
   }
   $('#send').addEventListener('click', submit);
@@ -1124,6 +1106,9 @@
   async function loadQuotaInputs() { const { q } = await quotaState(); $('#qLimit').value = q.limit; $('#qLeft').value = ''; refreshQuota(); }
   $('#petOn').checked = lsGet('kodi.pet') !== '0';
   $('#petOn').addEventListener('change', e => Pet.show(e.target.checked));
+  $('#petTalk').checked = lsGet('kodi.petTalk') !== '0';
+  $('#petTalk').addEventListener('change', e => Pet.setTalk(e.target.checked));
+  $('#inp').addEventListener('input', () => Pet.typing());
   $('#qApply').addEventListener('click', async () => {
     const limit = Math.round(Number($('#qLimit').value)); const leftTxt = $('#qLeft').value.trim();
     if (!(limit > 0 && limit < 10000000)) { say('qMsg', 'Informe um limite válido (ex.: 1000).', false); return; }
@@ -1486,7 +1471,7 @@
 
   // ---------- início ----------
   async function boot() {
-    Pet.init();
+    Pet.init(); Pet.renderSettings();
     try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); }
     catch { document.body.innerHTML = '<p style="padding:24px">Não consegui falar com o servidor. Tente de novo em instantes.</p>'; return; }
     S.appName = cfg.appName; $('#brandName').textContent = S.appName; $('#ver').textContent = $('#verHead').textContent = 'v' + VERSION;

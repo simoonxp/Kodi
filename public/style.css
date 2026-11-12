@@ -338,15 +338,27 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .mlist div { display: flex; align-items: center; gap: 8px; font-family: system-ui, sans-serif; }
 .mlist .aiic { width: 18px; height: 18px; }
 
-/* mascote: tamanho = 24x22 px do desenho vezes --k */
-#pet { --k: 4; position: fixed; right: 14px; bottom: 96px; width: calc(24px * var(--k)); height: calc(22px * var(--k)); padding: 0; border: 0; background: none; cursor: pointer; z-index: 30; -webkit-tap-highlight-color: transparent; }
+/* mascote (canvas): posição e tamanho vêm do mascot.js */
+#pet { position: fixed; z-index: 30; padding: 0; margin: 0; cursor: pointer; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: left .55s cubic-bezier(.3, 1.4, .5, 1), top .55s cubic-bezier(.3, 1.4, .5, 1); outline: none; }
 #pet[hidden] { display: none; }
-#pet::before { content: ''; display: block; width: 100%; height: 100%; background: url(/mascote.png) 0 calc(var(--row, 0) * -22px * var(--k)) / calc(192px * var(--k)) calc(132px * var(--k)) no-repeat; image-rendering: pixelated; animation: petf 1.6s steps(8) infinite; }
-@keyframes petf { to { background-position-x: calc(-192px * var(--k)); } }
-@media (min-width: 761px) { body.noside #pet { --k: 6; right: 22px; bottom: 120px; } }
-@media (min-width: 1500px) { body.noside #pet { --k: 7; right: 40px; } }
-@media (max-width: 700px) { #pet { --k: 4; right: 8px; bottom: 96px; } }
-@media (prefers-reduced-motion: reduce) { #pet::before { animation: none; } }
+#pet.nomove, #pet.dragging { transition: none; }
+#pet.dragging { cursor: grabbing; }
+#pet canvas { display: block; image-rendering: pixelated; }
+#pet:focus-visible canvas { outline: 2px solid var(--accent, #2bd27a); outline-offset: 2px; border-radius: 6px; }
+#pet.hop canvas { animation: pethop .5s ease-out; }
+@keyframes pethop { 0% { transform: translateY(0); } 35% { transform: translateY(-14px); } 70% { transform: translateY(0); } 85% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+#petBubble { position: fixed; z-index: 31; max-width: 230px; padding: 8px 12px; background: var(--panel2, #2a2a2a); border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; line-height: 1.35; color: var(--text); opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s; pointer-events: none; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+#petBubble.show { opacity: 1; transform: none; }
+#petBubble[hidden] { display: none; }
+#petSlot { height: 0; flex: none; transition: height .25s; }
+body.pet-side #petSlot { height: 64px; }
+body.pet-welcome .welcome img { visibility: hidden; width: 168px; height: 130px; }
+@media (max-width: 760px) { body.pet-welcome .welcome img { width: 120px; height: 100px; } }
+.accrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.accopt { background: var(--panel2, #2a2a2a); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.accopt.on { border-color: var(--accent, #2bd27a); color: var(--accent, #2bd27a); }
+.accopt:disabled { opacity: .5; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { #pet, #petSlot { transition: none; } #pet.hop canvas { animation: none; } }
 
 /* esconder a barra lateral (só no computador): o chat ocupa a tela toda */
 .only-desktop { display: grid; }
