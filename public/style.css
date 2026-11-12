@@ -317,3 +317,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 .aiic[data-shape="diamond"] { border-radius: 0; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); font-size: 10px; }
 .aiic[data-shape="octagon"] { border-radius: 0; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
 .aiic[data-shape="shield"] { border-radius: 0; clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); padding-bottom: 3px; }
+
+/* logos reais das IAs: sobre um fundo claro para qualquer cor de logo aparecer no tema escuro */
+.aiic.logo { background: #fff; padding: 3px; box-sizing: border-box; border-radius: 50%; }
+.aiic.logo img { width: 100%; height: 100%; object-fit: contain; display: block; }

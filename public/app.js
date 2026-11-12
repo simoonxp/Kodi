@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.8.1';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.9.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -33,8 +33,17 @@
     return { name: v ? v.charAt(0).toUpperCase() + v.slice(1) : shortModel(id), color: `hsl(${h} 45% 45%)`, shape: SHAPES[h % SHAPES.length] };
   };
   const aiName = id => aiInfo(id).name;
-  function aiIcon(id, el = document.createElement('b')) {            // selo com a inicial da IA, na cor da família
-    const i = aiInfo(id); el.className = 'aiic'; el.textContent = (i.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase(); el.style.background = i.color; el.dataset.shape = i.shape; return el;
+  // Arquivo do logo de cada família (public/ai-icons/<arquivo>.svg). Sem arquivo, vale o selo com a inicial.
+  const AI_LOGO = { 'DeepSeek': 'deepseek', 'Nemotron · NVIDIA': 'nemotron', 'Qwen · Alibaba': 'qwen', 'GPT · OpenAI': 'gpt', 'Claude · Anthropic': 'claude',
+    'Gemini · Google': 'gemini', 'Gemma · Google': 'gemma', 'Llama · Meta': 'llama', 'Muse · Meta': 'muse', 'Mistral': 'mistral', 'MiniMax': 'minimax',
+    'Kimi · Moonshot': 'kimi', 'GLM · Z.ai': 'glm', 'Phi · Microsoft': 'phi', 'Step · StepFun': 'step', 'Laguna · Poolside': 'laguna', 'Yi · 01.AI': 'yi',
+    'Jamba · AI21': 'jamba', 'DBRX · Databricks': 'dbrx', 'StarCoder': 'starcoder', 'Granite · IBM': 'granite', 'NVIDIA': 'nvidia' };
+  function aiIcon(id, el = document.createElement('b')) {            // logo da IA; se faltar o arquivo, selo com a inicial na cor da família
+    const i = aiInfo(id), logo = AI_LOGO[i.name]; el.className = 'aiic'; el.textContent = ''; el.style.background = ''; el.dataset.shape = i.shape;
+    const badge = () => { el.classList.remove('logo'); el.replaceChildren(); el.textContent = (i.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase(); el.style.background = i.color; };
+    if (!logo) { badge(); return el; }
+    const img = new Image(); img.alt = ''; img.decoding = 'async'; img.onerror = badge; img.src = `/ai-icons/${logo}.svg`;
+    el.classList.add('logo'); el.dataset.shape = 'circle'; el.append(img); return el;
   }
 
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');

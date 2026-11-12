@@ -51,6 +51,12 @@ const STATIC = {
   '/icon-maskable-512.png': ['icon-maskable-512.png', 'image/png'],
 };
 function serveStatic(res, pathname, cfg) {
+  const ic = /^\/ai-icons\/([a-z0-9-]+)\.svg$/.exec(pathname);
+  if (ic) {
+    const f = path.join(PUBLIC, 'ai-icons', ic[1] + '.svg');
+    if (fs.existsSync(f)) { res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' }); res.end(fs.readFileSync(f)); return true; }
+    return false;
+  }
   if (pathname === '/' || pathname === '/index.html') {
     const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replace(/\{\{APP_NAME\}\}/g, cfg.appName.replace(/[<>&"]/g, ''));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
