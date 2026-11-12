@@ -160,7 +160,8 @@
       <h3>Modelos de IA</h3>
       <p class="muted">Nem todo modelo da lista da NVIDIA responde na sua conta. Este teste descobre quais funcionam e escolhe o mais rápido.</p>
       <label class="muted small" for="model">Modelo usado nas conversas</label>
-      <select id="model" class="field" aria-label="Modelo de IA"></select>
+      <select id="model" class="field" aria-label="Modelo de IA" hidden></select>
+      <div class="mpick" id="modelPick"><button type="button" class="field mpick-btn" id="modelPickBtn" aria-haspopup="listbox" aria-expanded="false"></button><div class="mpick-list" id="modelPickList" role="listbox" hidden></div></div>
       <div class="row"><button class="ghost" id="modelsTest">Testar modelos</button></div>
       <div class="msg" id="modelsMsg" role="status"></div>
       <div id="modelsList" class="mlist"></div>

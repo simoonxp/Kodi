@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.9.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.9.1';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -507,8 +507,32 @@
     const pick = !all.length || all.includes(cur) ? cur : (S.good[0] || bestModel(list));
     const ids = [...new Set([pick, ...S.good, ...list])];
     sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${S.good.includes(id) ? '✓ ' : ''}${esc(id)}</option>`).join('') + '<option value="__custom">Outro modelo (digitar o nome)…</option>';
-    sel.value = pick; S.model = pick; updateModelChip();
+    sel.value = pick; S.model = pick; updateModelChip(); renderPicker(ids);
   }
+  // Seletor com logo e nome da IA (a lista nativa não mostra imagens). O <select> escondido continua guardando o valor.
+  const niceModel = id => shortModel(id).replace(/[-_]+/g, ' ').replace(/\b(instruct|it|chat|hf)\b/gi, '').replace(/\s+/g, ' ').trim()
+    .replace(/(\d)([bkm])\b/gi, (m, d, u) => d + u.toUpperCase()).replace(/\b([a-z])([a-z]*)/g, (m, a, b) => a.toUpperCase() + b).replace(/Deepseek/g, 'DeepSeek').replace(/\bGpt\b/g, 'GPT').replace(/Minimax/g, 'MiniMax').replace(/Glm/g, 'GLM');   // "llama 3.3 70b" -> "Llama 3.3 70B"
+  const aiMaker = id => { const n = aiName(id); return n.includes('·') ? n.split('·')[1].trim() : (n === niceModel(id) ? '' : n); };
+  function pickRow(id, extra = '') {
+    const r = document.createElement('div'); r.className = 'mpick-row' + extra; r.dataset.id = id; r.setAttribute('role', 'option');
+    r.append(aiIcon(id)); const t = document.createElement('span'); t.className = 'mpick-t';
+    t.innerHTML = `<b>${esc(niceModel(id))}</b><small>${esc(aiMaker(id))}</small>`; r.append(t);
+    if (S.good.includes(id)) { const k = document.createElement('i'); k.className = 'mpick-ok'; k.textContent = '✓'; k.title = 'Respondeu no teste'; r.append(k); }
+    return r;
+  }
+  function renderPicker(ids) {
+    const btn = $('#modelPickBtn'), list = $('#modelPickList'); if (!btn) return;
+    btn.replaceChildren(); if (S.model) { const row = pickRow(S.model); row.querySelector('.mpick-ok')?.remove(); btn.append(row); } else btn.textContent = 'Escolher modelo';
+    list.replaceChildren(...ids.map(id => { const r = pickRow(id); if (id === S.model) r.classList.add('sel'); return r; }));
+    const o = document.createElement('div'); o.className = 'mpick-row mpick-other'; o.dataset.id = '__custom'; o.textContent = 'Outro modelo (digitar o nome)…'; list.append(o);
+  }
+  function togglePicker(open) { const l = $('#modelPickList'); l.hidden = !open; $('#modelPickBtn').setAttribute('aria-expanded', String(open)); if (open) l.querySelector('.sel')?.scrollIntoView({ block: 'nearest' }); }
+  $('#modelPickBtn').addEventListener('click', () => togglePicker($('#modelPickList').hidden));
+  $('#modelPickList').addEventListener('click', e => {
+    const r = e.target.closest('.mpick-row'); if (!r) return; togglePicker(false);
+    const sel = $('#model'); sel.value = r.dataset.id; sel.dispatchEvent(new Event('change'));
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#modelPick')) togglePicker(false); });
   function updateModelChip() {                       // mostra no topo qual modelo da NVIDIA está em uso
     const c = $('#modelChip'); if (!c) return;
     c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model); aiIcon(S.model, $('#modelChipIc'));
@@ -679,7 +703,7 @@
     S.mode = mode;
     $$('#modeTabs button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
     $('#folder').hidden = mode !== 'code';
-    $('#model').hidden = mode !== 'chat'; updateModelChip();
+    $('#modelPick').hidden = mode !== 'chat'; updateModelChip();
     S.search = ''; $('#search').value = '';
     newChat();
     if (mode === 'code') loadCodeSessions(); else renderList();
@@ -1056,7 +1080,7 @@
     const box = $('#modelsList'); box.innerHTML = '';
     for (const x of rep.slice().sort((a, b) => (b.res.startsWith('ok') - a.res.startsWith('ok')))) {
       const d = document.createElement('div'); d.className = x.res.startsWith('ok') ? 'okline' : 'badline';
-      d.textContent = `${x.res.startsWith('ok') ? '✓' : '✗'} ${x.id} — ${x.res}`; box.appendChild(d);
+      d.append(aiIcon(x.id)); d.append(`${x.res.startsWith('ok') ? '✓' : '✗'} ${niceModel(x.id)} — ${x.res}`); box.appendChild(d);
     }
   }
   $('#modelsTest').addEventListener('click', async () => {
@@ -1088,7 +1112,7 @@
     await Store.delMeta('usage'); await Store.delMeta('quota'); renderUsage(); loadQuotaInputs(); refreshUsageBadge();
   });
   $('#usageToday').addEventListener('click', openSettings);
-  $('#modelChip').addEventListener('click', () => { openSettings(); setTimeout(() => { const m = $('#model'); m.scrollIntoView({ block: 'center' }); m.focus(); }, 80); });
+  $('#modelChip').addEventListener('click', () => { openSettings(); setTimeout(() => { const m = $('#modelPickBtn'); m.scrollIntoView({ block: 'center' }); m.focus(); }, 80); });
 
   // backup e restauração (a única forma de levar as conversas para outro aparelho)
   $('#btnBackup').addEventListener('click', async () => {

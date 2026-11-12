@@ -321,3 +321,19 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 /* logos reais das IAs: sobre um fundo claro para qualquer cor de logo aparecer no tema escuro */
 .aiic.logo { background: #fff; padding: 3px; box-sizing: border-box; border-radius: 50%; }
 .aiic.logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.mpick { position: relative; }
+.mpick[hidden], .mpick-list[hidden] { display: none; }
+.mpick-btn { text-align: left; cursor: pointer; padding: 7px 10px; }
+.mpick-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; cursor: pointer; }
+.mpick-row .aiic { width: 26px; height: 26px; font-size: 13px; }
+.mpick-t { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.mpick-t b { font-weight: 600; font-size: 14.5px; }
+.mpick-t small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-ok { color: var(--accent); font-style: normal; font-weight: 700; }
+.mpick-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 320px; overflow: auto; background: var(--bg, #191919); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.mpick-list .mpick-row:hover, .mpick-list .mpick-row.sel { background: rgba(255,255,255,.07); }
+.mpick-other { color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--line); }
+
+.mlist div { display: flex; align-items: center; gap: 8px; font-family: system-ui, sans-serif; }
+.mlist .aiic { width: 18px; height: 18px; }
