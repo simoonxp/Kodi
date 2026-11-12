@@ -347,13 +347,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .62); }
 #pet:focus-visible canvas { outline: 2px solid var(--accent, #2bd27a); outline-offset: 2px; border-radius: 6px; }
 #pet.hop canvas { animation: pethop .5s ease-out; }
 @keyframes pethop { 0% { transform: translateY(0); } 35% { transform: translateY(-14px); } 70% { transform: translateY(0); } 85% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
-#petBubble { position: fixed; z-index: 31; max-width: 230px; padding: 8px 12px; background: var(--panel2, #2a2a2a); border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; line-height: 1.35; color: var(--text); opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s; pointer-events: none; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
-#petBubble.show { opacity: 1; transform: none; }
-#petBubble[hidden] { display: none; }
 #petSlot { height: 0; flex: none; transition: height .25s; }
 body.pet-side #petSlot { height: 64px; }
-body.pet-welcome .welcome img { visibility: hidden; width: 168px; height: 130px; }
-@media (max-width: 760px) { body.pet-welcome .welcome img { width: 120px; height: 100px; } }
 .accrow { display: flex; flex-wrap: wrap; gap: 8px; }
 .accopt { background: var(--panel2, #2a2a2a); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 .accopt.on { border-color: var(--accent, #2bd27a); color: var(--accent, #2bd27a); }

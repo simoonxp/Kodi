@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.12.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.13.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -73,7 +73,7 @@
   // ======================================================================
   // Armazenamento local (IndexedDB; se o navegador não permitir, fica só na memória)
   // ======================================================================
-  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage', 'avatar', 'pinned']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
+  const SYNCED = new Set(['model', 'good', 'bad', 'quota', 'usage', 'avatar', 'pinned', 'pet']);   // preferências que vão para a conta (nunca a chave da NVIDIA)
   const Store = (() => {
     let db = null;
     const mem = { chats: new Map(), msgs: new Map(), meta: new Map() };
@@ -978,6 +978,7 @@
     const text = $('#inp').value.trim();
     if (!text) return;
     if (/^\/(dan[cç]ar|dance)$/i.test(text)) { $('#inp').value = ''; Pet.dance(); return; }   // segredinho do mascote
+    const pm = /^\/mascote(?:\s+(\S+))?$/i.exec(text); if (pm) { $('#inp').value = ''; Pet.command(pm[1]); return; }   // /mascote [esconder|mostrar|pequeno|medio|grande]
     Pet.sent();
     (S.mode === 'code' ? sendCode : sendChat)(text);
   }
@@ -1106,8 +1107,6 @@
   async function loadQuotaInputs() { const { q } = await quotaState(); $('#qLimit').value = q.limit; $('#qLeft').value = ''; refreshQuota(); }
   $('#petOn').checked = lsGet('kodi.pet') !== '0';
   $('#petOn').addEventListener('change', e => Pet.show(e.target.checked));
-  $('#petTalk').checked = lsGet('kodi.petTalk') !== '0';
-  $('#petTalk').addEventListener('change', e => Pet.setTalk(e.target.checked));
   $('#inp').addEventListener('input', () => Pet.typing());
   $('#qApply').addEventListener('click', async () => {
     const limit = Math.round(Number($('#qLimit').value)); const leftTxt = $('#qLeft').value.trim();
@@ -1299,7 +1298,7 @@
     },
 
     // ---- preferências
-    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage'), avatar: (await Store.getMeta('avatar')) || '', pinned: S.pinned || [] }; },
+    async settingsPayload() { return { model: S.model, good: S.good, bad: S.bad, quota: await Store.getMeta('quota'), usage: await Store.getMeta('usage'), avatar: (await Store.getMeta('avatar')) || '', pinned: S.pinned || [], pet: (await Store.getMeta('pet')) || null }; },
     touch() {
       if (this.applying) return;
       Store.setMeta('settingsUpdated', Date.now()).catch(() => {});
@@ -1330,6 +1329,7 @@
           if (Array.isArray(remote.data.bad)) S.bad = remote.data.bad;
           if (typeof remote.data.avatar === 'string') { S.avatar = remote.data.avatar; applyAvatar(); }
           if (Array.isArray(remote.data.pinned)) { S.pinned = remote.data.pinned; renderList(); }
+          if (remote.data.pet && window.Pet) Pet.import(remote.data.pet);
         } finally { this.applying = false; }
         fillModels(S.models); refreshUsageBadge();
       } else if (!remote || mine > Number(remote.updated)) await this.pushSettings();
@@ -1472,6 +1472,9 @@
   // ---------- início ----------
   async function boot() {
     Pet.init(); Pet.renderSettings();
+    Pet.onUnlock = nome => toast('O mascote desbloqueou: ' + nome + '. Veja nas configurações.');
+    try { const pm = await Store.getMeta('pet'); if (pm) Pet.import(pm); } catch { /* sem dados salvos */ }
+    Pet.onChange = o => { Store.setMeta('pet', o).catch(() => {}); };
     try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); }
     catch { document.body.innerHTML = '<p style="padding:24px">Não consegui falar com o servidor. Tente de novo em instantes.</p>'; return; }
     S.appName = cfg.appName; $('#brandName').textContent = S.appName; $('#ver').textContent = $('#verHead').textContent = 'v' + VERSION;
