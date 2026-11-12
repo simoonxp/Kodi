@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.13.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.14.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -538,7 +538,6 @@
     const c = $('#modelChip'); if (!c) return;
     c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model); aiIcon(S.model, $('#modelChipIc'));
     c.title = 'IA em uso: ' + aiName(S.model) + ' (' + S.model + '). Clique para trocar';
-    if (window.Pet && S.model) Pet.setColor(aiInfo(S.model).color);
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
   let probing = false;
