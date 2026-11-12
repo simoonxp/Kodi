@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.9.1';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.10.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -391,6 +391,7 @@
     d.appendChild(b); msgs.appendChild(d); return d;
   }
   function showError(text) {
+    Pet.fail();
     const e = document.createElement('div'); e.className = 'err-box'; e.textContent = text; msgs.appendChild(e); scrollDown(true); return e;
   }
   const fmtSecs = ms => { const t = Math.floor(ms / 1000); return t < 60 ? t + 's' : Math.floor(t / 60) + 'min ' + String(t % 60).padStart(2, '0') + 's'; };
@@ -769,8 +770,30 @@
     return [{ role: 'system', content: cfg.systemPrompt }, ...out];
   }
 
+
+  // ---- Mascote: camaleão em pixel art no canto; reage ao chat (pensa, comemora, erra, dorme) ----
+  const PET_ROW = { idle: 0, think: 1, need: 2, ready: 3, block: 4, sleep: 5 };
+  const Pet = {
+    el: null, timer: null, sleepT: null, errAt: 0,
+    init() {
+      this.el = document.createElement('button'); this.el.id = 'pet'; this.el.type = 'button'; this.el.setAttribute('aria-label', 'Mascote do Kodi');
+      this.el.title = 'Mascote do Kodi'; this.el.addEventListener('click', () => this.set('need', 1400));
+      document.body.appendChild(this.el); this.show(lsGet('kodi.pet') !== '0'); this.set('idle');
+    },
+    show(on) { if (this.el) this.el.hidden = !on; lsSet('kodi.pet', on ? '1' : '0'); },
+    set(state, ms = 0) {
+      if (!this.el) return;
+      clearTimeout(this.timer); clearTimeout(this.sleepT);
+      this.el.dataset.state = state; this.el.style.setProperty('--row', PET_ROW[state] ?? 0);
+      if (ms) this.timer = setTimeout(() => this.set('idle'), ms);
+      else if (state === 'idle') this.sleepT = setTimeout(() => this.set('sleep'), 120000);
+    },
+    busy(on) { if (on) this.set('think'); else if (Date.now() - this.errAt > 1500) this.set('ready', 2600); },
+    fail() { this.errAt = Date.now(); this.set('block', 3200); },
+  };
+
   function setStreaming(on) {
-    S.streaming = on;
+    S.streaming = on; Pet.busy(on);
     const b = $('#send');
     b.classList.toggle('stop', on); b.title = on ? 'Parar' : 'Enviar'; b.setAttribute('aria-label', b.title);
     b.innerHTML = on ? '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M12 19V6M6 11.5l6-6 6 6"/></svg>';
@@ -1095,6 +1118,8 @@
   });
 
   async function loadQuotaInputs() { const { q } = await quotaState(); $('#qLimit').value = q.limit; $('#qLeft').value = ''; refreshQuota(); }
+  $('#petOn').checked = lsGet('kodi.pet') !== '0';
+  $('#petOn').addEventListener('change', e => Pet.show(e.target.checked));
   $('#qApply').addEventListener('click', async () => {
     const limit = Math.round(Number($('#qLimit').value)); const leftTxt = $('#qLeft').value.trim();
     if (!(limit > 0 && limit < 10000000)) { say('qMsg', 'Informe um limite válido (ex.: 1000).', false); return; }
@@ -1457,6 +1482,7 @@
 
   // ---------- início ----------
   async function boot() {
+    Pet.init();
     try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); }
     catch { document.body.innerHTML = '<p style="padding:24px">Não consegui falar com o servidor. Tente de novo em instantes.</p>'; return; }
     S.appName = cfg.appName; $('#brandName').textContent = S.appName; $('#ver').textContent = 'v' + VERSION;

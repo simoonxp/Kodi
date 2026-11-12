@@ -45,6 +45,7 @@ const STATIC = {
   '/sw.js': ['sw.js', 'application/javascript; charset=utf-8'],
   '/supabase-config.js': ['supabase-config.js', 'application/javascript; charset=utf-8'],
   '/icon.svg': ['icon.svg', 'image/svg+xml'],
+  '/mascote.png': ['mascote.png', 'image/png'],
   '/avatar-kodi.svg': ['avatar-kodi.svg', 'image/svg+xml'],
   '/icon-192.png': ['icon-192.png', 'image/png'],
   '/icon-512.png': ['icon-512.png', 'image/png'],
