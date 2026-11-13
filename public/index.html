@@ -52,7 +52,7 @@
       </button>
       <button class="icon only-desktop" id="btnShowSide" aria-label="Mostrar a barra lateral" title="Mostrar a barra lateral"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg></button>
       <span class="title" id="title">Nova conversa</span><span class="ver" id="verHead" title="Versão do app"></span>
-      <button class="mchip" id="modelChip" type="button" hidden title="Modelo de IA em uso. Clique para trocar"><b class="aiic" id="modelChipIc"></b><span id="modelChipTxt"></span></button>
+      <button class="mchip" id="modelChip" type="button" aria-haspopup="dialog" aria-expanded="false" hidden title="Modelo de IA em uso. Clique para trocar"><b class="aiic" id="modelChipIc"></b><span id="modelChipTxt"></span></button>
       <span class="cwd" id="cwdLabel"></span>
       <button class="icon" id="btnAcc" aria-label="Conta" title="Conta"><svg viewBox="0 0 24 24" id="accIcon"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20c.9-3.7 3.9-5.6 7.5-5.6s6.6 1.9 7.5 5.6"/></svg></button>
     <div class="acct" id="acct" hidden>
@@ -118,6 +118,12 @@
 </dialog>
 
 <!-- ============ CONFIGURAÇÕES ============ -->
+<div class="mmenu" id="modelMenu" role="dialog" aria-label="Modelos de IA" hidden>
+  <div class="mmenu-h"><b>Modelos de IA</b><small id="mmenuSub"></small></div>
+  <input id="mmenuQ" class="field" type="search" placeholder="Buscar modelo…" aria-label="Buscar modelo" autocomplete="off">
+  <div class="mmenu-list" id="modelMenuList" role="listbox"></div>
+  <div class="mmenu-f"><button type="button" class="ghost" id="mmenuTest">Testar modelos e mais opções</button></div>
+</div>
 <dialog id="dlgSettings">
   <div class="dlg-head"><h2>Configurações</h2><button class="icon" data-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="dlg-body">

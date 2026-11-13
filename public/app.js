@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.17.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.18.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -526,6 +526,25 @@
     btn.replaceChildren(); if (S.model) { const row = pickRow(S.model); row.querySelector('.mpick-ok')?.remove(); btn.append(row); } else btn.textContent = 'Escolher modelo';
     list.replaceChildren(...ids.map(id => { const r = pickRow(id); if (id === S.model) r.classList.add('sel'); return r; }));
     const o = document.createElement('div'); o.className = 'mpick-row mpick-other'; o.dataset.id = '__custom'; o.textContent = 'Outro modelo (digitar o nome)…'; list.append(o);
+    S.pickIds = ids; renderMenu();
+  }
+  // Aba de modelos que abre ao clicar no nome da IA no topo (mesma lista das configurações, sem sair da conversa)
+  function renderMenu() {
+    const list = $('#modelMenuList'); if (!list) return; const q = ($('#mmenuQ').value || '').trim().toLowerCase();
+    const ids = (S.pickIds || []).filter(id => !q || (niceModel(id) + ' ' + aiMaker(id) + ' ' + id).toLowerCase().includes(q));
+    list.replaceChildren(...ids.map(id => { const r = pickRow(id); if (id === S.model) { r.classList.add('sel'); r.setAttribute('aria-selected', 'true'); } return r; }));
+    if (!q) { const o = document.createElement('div'); o.className = 'mpick-row mpick-other'; o.dataset.id = '__custom'; o.textContent = 'Outro modelo (digitar o nome)…'; list.append(o); }
+    else if (!ids.length) { const o = document.createElement('div'); o.className = 'mmenu-empty'; o.textContent = 'Nenhum modelo encontrado.'; list.append(o); }
+    $('#mmenuSub').textContent = (S.pickIds || []).length + ' modelos' + (S.good.length ? ' · ✓ respondeu no teste' : '');
+  }
+  function placeMenu() {
+    const m = $('#modelMenu'), c = $('#modelChip'); if (m.hidden) return;
+    const r = c.getBoundingClientRect(), w = Math.min(380, window.innerWidth - 24), left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)), top = r.bottom + 8;
+    Object.assign(m.style, { width: w + 'px', left: left + 'px', top: top + 'px', maxHeight: Math.max(220, window.innerHeight - top - 16) + 'px' });
+  }
+  function toggleMenu(open) {
+    const m = $('#modelMenu'); m.hidden = !open; $('#modelChip').setAttribute('aria-expanded', String(open));
+    if (open) { $('#mmenuQ').value = ''; renderMenu(); placeMenu(); m.querySelector('.sel')?.scrollIntoView({ block: 'center' }); }
   }
   function togglePicker(open) { const l = $('#modelPickList'); l.hidden = !open; $('#modelPickBtn').setAttribute('aria-expanded', String(open)); if (open) l.querySelector('.sel')?.scrollIntoView({ block: 'nearest' }); }
   $('#modelPickBtn').addEventListener('click', () => togglePicker($('#modelPickList').hidden));
@@ -1126,7 +1145,16 @@
     await Store.delMeta('usage'); await Store.delMeta('quota'); renderUsage(); loadQuotaInputs(); refreshUsageBadge();
   });
   $('#usageToday').addEventListener('click', openSettings);
-  $('#modelChip').addEventListener('click', () => { openSettings(); setTimeout(() => { const m = $('#modelPickBtn'); m.scrollIntoView({ block: 'center' }); m.focus(); }, 80); });
+  $('#modelChip').addEventListener('click', () => toggleMenu($('#modelMenu').hidden));
+  $('#mmenuQ').addEventListener('input', renderMenu);
+  $('#modelMenuList').addEventListener('click', e => {
+    const r = e.target.closest('.mpick-row'); if (!r) return; toggleMenu(false);
+    const sel = $('#model'); sel.value = r.dataset.id; sel.dispatchEvent(new Event('change'));
+  });
+  $('#mmenuTest').addEventListener('click', () => { toggleMenu(false); openSettings(); setTimeout(() => { const b = $('#modelsTest'); b.scrollIntoView({ block: 'center' }); b.focus(); }, 80); });
+  document.addEventListener('click', e => { if (!$('#modelMenu').hidden && !e.target.closest('#modelMenu, #modelChip')) toggleMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modelMenu').hidden) { toggleMenu(false); $('#modelChip').focus(); } });
+  window.addEventListener('resize', placeMenu);
 
   // backup e restauração (a única forma de levar as conversas para outro aparelho)
   $('#btnBackup').addEventListener('click', async () => {
