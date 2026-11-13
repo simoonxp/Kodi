@@ -47,7 +47,7 @@
     state: 'idle', t: 0, k: 4, hueOverride: null, ready: false, on: true, flip: false, flipHome: false, dir: null, size: 'auto', still: false, life: true, onChange: null, onUnlock: null,
     cursor: { x: -1, y: -1 }, typingUntil: 0, hearts: [], fly: null, catching: 0, danceUntil: 0, colorT: null, act: null, actT: null, walking: false, holdF: null, away: false,
     timer: null, sleepT: null, lifeT: null, errAt: 0, drag: null, mode: '', konami: 0, count: 0, best: 0, acc: 'nenhum', home: null, pos: { left: 0, top: 0 },
-    streamAt: 0, streamN: 0, tip: null, tipAt: 0, tempAcc: null, shyUntil: 0, shyCool: 0, lastMove: null, bornAt: Date.now(), reply: null,
+    blinkUntil: 0, nextBlink: 0, pup: null, lookV: null, lastY: 0, sub: 0, streamAt: 0, streamN: 0, tip: null, tipAt: 0, tempAcc: null, shyUntil: 0, shyCool: 0, lastMove: null, bornAt: Date.now(), reply: null,
 
     init() {
       this.on = ls.get('kodi.pet') !== '0'; this.size = ls.get('kodi.petSize') || 'auto'; this.life = ls.get('kodi.petLife') !== '0';
@@ -66,8 +66,9 @@
       load('/mascote.png', c => { this.base = c; }); load('/mascote-fx.png', c => { this.fx = c; });
       const hour = new Date().getHours();
       this.set(hour < 5 ? 'sleep' : 'idle'); this.place(true);        // de madrugada ele acorda sonolento
-      setInterval(() => this.tick(), 125);
+      setInterval(() => this.tick(), 62);
       if (hour >= 5) setTimeout(() => this.hop(), 900);
+      if (!this.still && this.on) { this.el.classList.add('drop'); setTimeout(() => this.el && this.el.classList.remove('drop'), 900); }
       if (miss) setTimeout(() => { this.pet(); setTimeout(() => this.pet(), 900); }, 1600);   // saudade: voltou depois de uns dias
       this.scheduleLife();
     },
@@ -220,14 +221,14 @@
       document.body.classList.toggle('pet-side', mode === 'side' && this.on);
       const k = this.sizeFor(mode), kChanged = k !== this.k; this.k = k;
       // pousado na caixa: reserva uma faixa acima dela, para ele nunca ficar na frente do texto do chat
-      document.documentElement.style.setProperty('--petstrip', mode === 'perch' && this.on ? Math.round(16 * k) + 'px' : '0px');
+      document.documentElement.style.setProperty('--petstrip', mode === 'perch' && this.on ? Math.round(17 * k) + 'px' : '0px');
       const cw = (SW + 2 * OX) * k, ch = (SH + OYT + OYB) * k;
       if (this.cv.width !== cw || this.cv.height !== ch) { this.cv.width = cw; this.cv.height = ch; }
       this.el.style.width = cw + 'px'; this.el.style.height = ch + 'px';
       Object.assign(this.hit.style, { left: OX * k + 'px', top: OYT * k + 'px', width: SW * k + 'px', height: SH * k + 'px' });
       const w = SW * k, h = SH * k, lim = window.innerWidth - w - 4; let homeL, top, minL, maxL;
       if (mode === 'side') { const r = (this.slot || side).getBoundingClientRect(); homeL = r.left + 14; top = r.bottom - h + 2 * k; minL = homeL; maxL = Math.max(homeL, r.right - w - 14); }
-      else { const b = $('#box'); const r = b ? b.getBoundingClientRect() : { left: 20, right: window.innerWidth - 20, top: window.innerHeight - 90 }; homeL = r.right - w - 26; top = r.top - 19 * k + 2; maxL = homeL; minL = r.left + 24; }
+      else { const b = $('#box'); const r = b ? b.getBoundingClientRect() : { left: 20, right: window.innerWidth - 20, top: window.innerHeight - 90 }; homeL = r.right - w - 26; top = r.top - 20 * k + 1; maxL = homeL; minL = r.left + 24; }
       homeL = clamp(homeL, 4, lim); maxL = clamp(maxL, 4, lim); minL = Math.min(clamp(minL, 4, lim), maxL); top = Math.max(4, top);
       this.minL = minL; this.maxL = maxL; this.home = { left: homeL, top, w, h };
       if (changed || kChanged || first) { this.cancelAct(false); this.away = false; }
@@ -243,14 +244,15 @@
     face() { this.flip = this.dir ? this.dir === 'L' : this.flipHome; },
 
     // ---------- vida própria: passeios, pulos e manias ----------
+    squash() { if (!this.el || this.still) return; this.el.classList.add('squash'); setTimeout(() => this.el && this.el.classList.remove('squash'), 190); },
     freeze() {                                                   // para onde ele está agora (no meio do caminho)
       const r = this.hit.getBoundingClientRect(); this.el.style.transition = 'none';
       this.pos.left = r.left; this.el.style.left = r.left - OX * this.k + 'px'; void this.el.offsetWidth; this.el.style.transition = '';
     },
-    startAct(name, ms) { clearTimeout(this.actT); this.act = { name, until: Date.now() + ms }; this.actT = setTimeout(() => this.endAct(), ms + 30); const c = this.el.classList; if (name === 'stretch') c.add('stretch'); if (name === 'yawn') c.add('yawn'); if (name === 'yawn' || name === 'scratch') this.holdF = 6; },
+    startAct(name, ms) { clearTimeout(this.actT); this.act = { name, until: Date.now() + ms }; this.actT = setTimeout(() => this.endAct(), ms + 30); const c = this.el.classList; if (name === 'stretch') c.add('stretch'); if (name === 'yawn') c.add('yawn'); if (name === 'wiggle') c.add('wiggle'); if (name === 'yawn' || name === 'scratch') this.holdF = 6; },
     endAct() {
-      clearTimeout(this.actT); this.act = null; this.walking = false; this.dir = null; this.holdF = null; this.tip = null;
-      if (this.el) { this.el.style.transition = ''; this.el.classList.remove('stretch', 'yawn'); }
+      clearTimeout(this.actT); const wasMove = this.walking || (this.act && this.act.name === 'jump'); this.act = null; this.walking = false; this.dir = null; this.holdF = null; this.tip = null;
+      if (this.el) { this.el.style.transition = ''; this.el.classList.remove('stretch', 'yawn', 'wiggle', 'walking'); if (wasMove) this.squash(); }
       if (this.home) this.away = Math.abs(this.pos.left - this.home.left) > 4;
       this.face();
     },
@@ -265,20 +267,21 @@
       const ms = kind === 'jump' ? 560 : Math.max(900, Math.abs(dist) / (this.k * 16) * 1000);
       this.dir = dist < 0 ? 'L' : 'R'; this.face(); this.startAct(kind, ms); this.walking = kind === 'walk';
       if (kind === 'jump') this.hop();
-      this.el.style.transition = (kind === 'jump' ? 'left .56s cubic-bezier(.3, 1.2, .5, 1)' : `left ${ms}ms linear`) + ', top .55s cubic-bezier(.3, 1.4, .5, 1)';
+      this.squash(); if (kind === 'walk') this.el.classList.add('walking');
+      this.el.style.transition = (kind === 'jump' ? 'left .56s cubic-bezier(.3, 1.2, .5, 1)' : `left ${ms}ms cubic-bezier(.45, 0, .55, 1)`) + ', top .55s cubic-bezier(.3, 1.4, .5, 1)';
       this.pos.left = x; this.el.style.left = x - OX * this.k + 'px'; return true;
     },
     goHome() { if (this.home && this.away) { this.cancelAct(true); this.walkTo(this.home.left, 'walk'); } },
     scheduleLife() {
       clearTimeout(this.lifeT);
       const h = new Date().getHours(), mood = h >= 5 && h < 12 ? .7 : (h >= 22 || h < 5) ? 1.6 : 1;     // manhã animado, noite sonolento
-      this.lifeT = setTimeout(() => { try { this.lifeStep(h); } catch { /* ok */ } this.scheduleLife(); }, rnd(6500, 15000) * mood);
+      this.lifeT = setTimeout(() => { try { this.lifeStep(h); } catch { /* ok */ } this.scheduleLife(); }, rnd(4200, 10500) * mood);
     },
     lifeStep(h) {
       if (!this.canAct()) return;
       const night = h >= 22 || h < 5, range = this.maxL - this.minL;
       const tips = this.pickTip();
-      const opts = [['walk', range > 30 ? 3 : 0], ['jump', range > 30 ? 1.5 : 0], ['stretch', 1.5], ['yawn', night ? 3.5 : 1], ['scratch', 1], ['look', 1.6], ['camo', .7], ['tip', tips && Date.now() - this.tipAt > 120000 ? 2 : 0], ['home', this.away ? 4 : 0]];
+      const opts = [['walk', range > 30 ? 3 : 0], ['jump', range > 30 ? 1.5 : 0], ['stretch', 1.5], ['yawn', night ? 3.5 : 1], ['scratch', 1], ['look', 1.6], ['wiggle', 1], ['flick', 1.3], ['camo', .7], ['tip', tips && Date.now() - this.tipAt > 120000 ? 2 : 0], ['home', this.away ? 4 : 0]];
       let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), pick = 'look';
       for (const o of opts) { if ((r -= o[1]) < 0) { pick = o[0]; break; } }
       const far = () => { let x, n = 0; do { x = rnd(this.minL, this.maxL); } while (Math.abs(x - this.pos.left) < range * .25 && ++n < 6); return x; };
@@ -288,6 +291,8 @@
       else if (pick === 'yawn') this.startAct('yawn', 1500);
       else if (pick === 'scratch') this.startAct('scratch', 1300);
       else if (pick === 'look') this.startAct('look', 2400);
+      else if (pick === 'wiggle') this.startAct('wiggle', 800);
+      else if (pick === 'flick') this.startAct('flick', 520);
       else if (pick === 'camo') { this.startAct('camo', 2800); this.tint(Math.floor(Math.random() * 360), 2800); this.hop(); }
       else if (pick === 'tip' && tips) { this.tipAt = Date.now(); this.startAct('tip', 3200); this.tip = tips; this.hop(); tips.el.classList.add('petping'); setTimeout(() => tips.el.classList.remove('petping'), 3000); }
     },
@@ -309,13 +314,14 @@
     // ---------- desenho ----------
     tick() {
       if (!this.ready || !this.on) return;
-      if (!this.still || this.danceUntil > Date.now()) this.t = (this.t + 1) % (FR * 100);
-      const now = Date.now();
+      this.sub = (this.sub || 0) + 1; const now = Date.now();
+      if (this.sub % 2 === 0 && (!this.still || this.danceUntil > now)) this.t = (this.t + 1) % (FR * 100);
+      if (!this.still && now > this.nextBlink) { this.blinkUntil = now + 140; this.nextBlink = now + (Math.random() < .25 ? 380 : rnd(2400, 6200)); }
       if (this.danceUntil > now) { this.hueOverride = (this.t * 47) % 360; this.applyColor(); }
       else if (this.danceUntil) { this.danceUntil = 0; this.hueOverride = null; this.applyColor(); }
       if (this.catching && this.state !== 'ready') this.catching = 0;
       if (this.tempAcc && now > this.tempAcc.until) this.tempAcc = null;
-      this.hearts = this.hearts.filter(h => (h.life -= 1) > 0);
+      this.hearts = this.hearts.filter(h => (h.life -= .5) > 0);
       this.draw();
     },
     // pupila: retângulo 1 x 1,5 (em pixels do sprite) que anda em meios-pixels dentro do olho (muitas direções)
@@ -329,7 +335,8 @@
         const d = Math.hypot(dx, dy), m = clamp(d / 220, 0, 1), ang = Math.atan2(dy, dx);
         px = 14 + Math.cos(ang) * m * 1.15; py = 6.75 + Math.sin(ang) * m * .95;
       };
-      if (now - this.streamAt < 800) {                                           // acompanhando o texto da resposta: lê e vai descendo
+      if (this.lookV && now < this.lookV.until && this.state === 'idle' && now >= this.typingUntil && !this.act) { px = 14; py = this.lookV.dy < 0 ? 6 : 7.5; }
+      else if (now - this.streamAt < 800) {                                           // acompanhando o texto da resposta: lê e vai descendo
         px = 13 + (this.t % 5) * .5; py = 6 + Math.min(1.5, this.streamN / 2200 * 1.5);
       } else if (this.state === 'think') { const a = (f / FR) * Math.PI * 2; px = 14 + Math.cos(a); py = 6.75 + Math.sin(a) * .75; }
       else if (now < this.typingUntil) {                                         // "lendo": varre o olho como quem lê linhas de texto
@@ -346,7 +353,9 @@
     },
     draw() {
       if (!this.ready || !this.cv) return;
-      const k = this.k, c = this.ctx, row = ROWS[this.state] ?? 0, f = this.holdF != null ? this.holdF : this.t % FR, now = Date.now(), an = this.act && this.act.name;
+      const k = this.k, c = this.ctx, row = ROWS[this.state] ?? 0, now = Date.now(), an = this.act && this.act.name;
+      let f = this.holdF != null ? this.holdF : this.t % FR;
+      if (this.state === 'idle' && this.holdF == null) f = now < this.blinkUntil ? 6 : (f === 6 ? 5 : f);
       this.face();
       c.setTransform(1, 0, 0, 1, 0, 0); c.imageSmoothingEnabled = false; c.clearRect(0, 0, this.cv.width, this.cv.height);
       const bob = this.walking ? (this.t % 2 ? -1 : 0) : 0;          // andando: balança a cada passo
@@ -361,7 +370,12 @@
       const dy = DY[this.state][f % 4];
       const px = (x, y, col, a = 1, w = 1, h = 1) => { c.globalAlpha = a; c.fillStyle = col; const xx = x + (y < HEAD ? lean : 0); c.fillRect(Math.round(xx * k), Math.round(y * k), Math.round(w * k), Math.round(h * k)); c.globalAlpha = 1; };
       const closed = this.state === 'sleep' || this.state === 'block' || (this.state === 'idle' && f === 6);
-      if (!closed) { const [ex, ey] = this.pupilRect(); px(ex, ey + dy, PUPIL, 1, 1, 1.5); }
+      if (!closed) {
+        const [tx, ty] = this.pupilRect(); if (!this.pup) this.pup = [tx, ty];
+        for (let i = 0; i < 2; i++) { const d = [tx, ty][i] - this.pup[i]; if (Math.abs(d) > .01) this.pup[i] += Math.sign(d) * Math.min(.5, Math.abs(d)); }   // o olhar desliza em vez de pular
+        let [ex, ey] = this.pup; if (ey > 6.5) ex = Math.max(ex, 14);
+        px(ex, ey + dy, PUPIL, 1, 1, 1.5);
+      }
       const art = ART[this.acc] || (this.tempAcc && ART[this.tempAcc.name]); if (art) for (const [x, y, col] of art) px(x, y + dy, col);
       // mosquinhas (claras, bem visíveis)
       const fly = (x, y, wing, s = 1) => { px(x, y, '#f4f4f4', 1, 2 * s, 1.2 * s); px(x + .2 * s, y + .2 * s, '#7a7a7a', 1, .6 * s, .6 * s); px(x - .6 * s, y - (1.4 + wing) * s, '#bfe9ff', .95, 1.2 * s, 1.2 * s); px(x + 1.4 * s, y - (1.4 + wing) * s, '#bfe9ff', .95, 1.2 * s, 1.2 * s); };
@@ -377,6 +391,7 @@
           if (p < 1 - .12) fly(tx + .6, ty - .5, this.t % 2);          // a mosquinha vem presa na ponta
         }
       }
+      if (an === 'flick') { const p = 1 - (this.act.until - now) / 520, e = Math.sin(clamp(p, 0, 1) * Math.PI), tx = 18.6 + e * 4.5; for (let i = 0; i <= 6; i++) px(18.6 + (tx - 18.6) * i / 6, 7.7, '#ff7aa8', 1, 1.1, 1.1); }
       // mosquinhas adotadas: rodeiam o camaleão (mais delas conforme o uso)
       const comp = this.count < 25 ? 0 : Math.min(3, 1 + Math.floor(this.count / 100));
       if (comp && this.state !== 'sleep' && this.state !== 'think') for (let i = 0; i < comp; i++) { const a = now / 1700 + i * 2.1; fly(13 + Math.cos(a) * 8.5, 0 + Math.sin(a * 1.7) * 2.2 - i * .5, (this.t + i) % 2, .75); }
@@ -402,7 +417,11 @@
         }
         this.lastMove = { x: e.clientX, y: e.clientY, t: now };
       }, { passive: true });
-      document.addEventListener('click', e => { if (e.target && e.target.closest) this.markTip(e.target); }, true);
+      const sc = $('#scroll'); if (sc) sc.addEventListener('scroll', () => { const d = sc.scrollTop - this.lastY; this.lastY = sc.scrollTop; if (Math.abs(d) > 40) this.lookV = { dy: d < 0 ? -1 : 1, until: Date.now() + 900 }; }, { passive: true });
+      document.addEventListener('click', e => {
+        const t = e.target && e.target.closest ? e.target : null;
+        if (t && t.closest('#newChat')) this.hop(); else if (t && t.closest('.copyall, .copy') && this.on) this.pet();      // reage a novo chat e a copiar
+ if (t) this.markTip(t); }, true);
       hit.addEventListener('pointerdown', e => { this.cancelAct(true); this.drag = { sx: e.clientX, sy: e.clientY, ox: parseFloat(this.el.style.left), oy: parseFloat(this.el.style.top), moved: false }; try { hit.setPointerCapture(e.pointerId); } catch { /* ok */ } });
       hit.addEventListener('pointerup', e => this.dragEnd(e)); hit.addEventListener('pointercancel', e => this.dragEnd(e));
       hit.addEventListener('dblclick', () => { this.tint(Math.floor(Math.random() * 360), 3500); this.hop(); });
