@@ -50,7 +50,7 @@
     grabCool: 0, moveAt: 0, fxc: null, fxx: null, fxRaf: 0, blinkUntil: 0, nextBlink: 0, pup: null, lookV: null, lastY: 0, sub: 0, streamAt: 0, streamN: 0, tip: null, tipAt: 0, tempAcc: null, shyUntil: 0, shyCool: 0, lastMove: null, bornAt: Date.now(), reply: null,
 
     init() {
-      this.on = ls.get('kodi.pet') !== '0'; this.size = ls.get('kodi.petSize') || 'auto'; this.life = ls.get('kodi.petLife') !== '0';
+      this.on = ls.get('kodi.pet') === '1';          // desligado por padrão; liga nas configurações this.size = ls.get('kodi.petSize') || 'auto'; this.life = ls.get('kodi.petLife') !== '0';
       this.still = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
       this.count = parseInt(ls.get('kodi.petCount') || '0', 10) || 0; this.acc = ls.get('kodi.petAcc') || 'nenhum';
       const miss = this.visit();
