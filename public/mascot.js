@@ -136,7 +136,7 @@
       if (on) { this.cancelAct(true); this.tip = null; this.set('think'); this.fly = { born: Date.now() }; return; }
       this.fly = null;
       if (Date.now() - this.errAt < 1500) return;
-      this.addCount(); this.catching = 1; this.set('ready', 2600);
+      this.addCount(); this.catching = 1; this.readyAt = Date.now(); this.set('ready', 2600); const iv = setInterval(() => this.draw(), 45); setTimeout(() => clearInterval(iv), 900);
       const r = this.reply; this.reply = null;
       if (r && r.code) { this.tempAcc = { name: 'oculos', until: Date.now() + 8000 }; }           // resposta com código: óculos de programador
       if (r && r.len > 2500) setTimeout(() => { if (this.state === 'idle') this.startAct('yawn', 1600); }, 3000);   // resposta longa: cansa
@@ -365,11 +365,15 @@
       const fly = (x, y, wing, s = 1) => { px(x, y, '#f4f4f4', 1, 2 * s, 1.2 * s); px(x + .2 * s, y + .2 * s, '#7a7a7a', 1, .6 * s, .6 * s); px(x - .6 * s, y - (1.4 + wing) * s, '#bfe9ff', .95, 1.2 * s, 1.2 * s); px(x + 1.4 * s, y - (1.4 + wing) * s, '#bfe9ff', .95, 1.2 * s, 1.2 * s); };
       if (this.state === 'think' && this.fly) {
         const a = (now - this.fly.born) / 650; fly(21.5 + Math.cos(a * 1.3) * 3.2, 3 + Math.sin(a * 2.2) * 2.6, this.t % 2);
-      } else if (this.catching && this.state === 'ready' && f <= 2) {
-        // língua comprida: dispara até a mosquinha e puxa de volta
-        const pos = [[28, 4.2], [25, 6.4], [22.3, 8.4]][f], mx = 21, my = 8.6, n = 12;
-        for (let i = 0; i <= n; i++) px(mx + (pos[0] - mx) * i / n, my + (pos[1] - my) * i / n, '#ff7aa8', 1, 1, 1);
-        fly(pos[0], pos[1], 0);
+      } else if (this.catching && this.state === 'ready') {
+        // língua comprida: sai da boca, pega a mosquinha e a puxa de volta (tudo desenhado, sem língua no sprite)
+        const p = (now - this.readyAt) / 750, mx = 18.6, my = 7.7, fx = 27, fy = 5.4;
+        if (p < 1) {
+          const e = p < .3 ? p / .3 : 1 - (p - .3) / .7, tx = mx + (fx - mx) * e, ty = my + (fy - my) * e, n = Math.max(2, Math.round(Math.hypot(tx - mx, ty - my) * 1.6));
+          for (let i = 0; i <= n; i++) px(mx + (tx - mx) * i / n, my + (ty - my) * i / n, '#ff7aa8', 1, 1.1, 1.1);
+          if (e > .08) { px(tx - .2, ty - .2, '#ff4f8b', 1, 1.5, 1.5); }
+          if (p < 1 - .12) fly(tx + .6, ty - .5, this.t % 2);          // a mosquinha vem presa na ponta
+        }
       }
       // mosquinhas adotadas: rodeiam o camaleão (mais delas conforme o uso)
       const comp = this.count < 25 ? 0 : Math.min(3, 1 + Math.floor(this.count / 100));
