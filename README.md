@@ -2,7 +2,7 @@
 
 <img src="public/icon-192.png" alt="Kodi" width="96" height="96">
 
-# Kodi &nbsp;<img src="https://img.shields.io/badge/vers%C3%A3o-v2.18.1-2bd27a?style=flat-square" alt="versão v2.18.1" align="top">
+# Kodi &nbsp;<img src="https://img.shields.io/badge/v2.18.1-2bd27a?style=flat-square" alt="versão v2.18.1" align="top">
 
 **Um chat com IA que é só seu.**
 Cada pessoa com a própria chave, o próprio espaço e a conta só se quiser.
