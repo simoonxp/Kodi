@@ -219,6 +219,8 @@
       this.flipHome = mode === 'perch';                     // pousado à direita da caixa: vira para dentro, olhando o chat
       document.body.classList.toggle('pet-side', mode === 'side' && this.on);
       const k = this.sizeFor(mode), kChanged = k !== this.k; this.k = k;
+      // pousado na caixa: reserva uma faixa acima dela, para ele nunca ficar na frente do texto do chat
+      document.documentElement.style.setProperty('--petstrip', mode === 'perch' && this.on ? Math.round(16 * k) + 'px' : '0px');
       const cw = (SW + 2 * OX) * k, ch = (SH + OYT + OYB) * k;
       if (this.cv.width !== cw || this.cv.height !== ch) { this.cv.width = cw; this.cv.height = ch; }
       this.el.style.width = cw + 'px'; this.el.style.height = ch + 'px';

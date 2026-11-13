@@ -385,3 +385,5 @@ body.pet-side #petSlot { height: 64px; }
 /* versão sempre visível: na barra quando aberta, no cabeçalho quando escondida */
 #verHead { display: none; margin-left: 0; white-space: nowrap; }
 @media (min-width: 761px) { body.noside #verHead { display: inline-block; } }
+
+#comp { padding-top: var(--petstrip, 0px); }
