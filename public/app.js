@@ -2,7 +2,7 @@
 // Tudo o que é pessoal (conversas, chave, preferências) fica no navegador desta pessoa (IndexedDB).
 // O servidor só entrega este programa e, se o navegador não puder falar direto com a NVIDIA, repassa a chamada.
 (() => {
-  const VERSION = '2.14.0';   // sobe a cada atualização do app; aparece ao lado do nome
+  const VERSION = '2.15.0';   // sobe a cada atualização do app; aparece ao lado do nome
   // ---------- utilidades ----------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -537,6 +537,7 @@
   function updateModelChip() {                       // mostra no topo qual modelo da NVIDIA está em uso
     const c = $('#modelChip'); if (!c) return;
     c.hidden = S.mode !== 'chat' || !S.model; $('#modelChipTxt').textContent = aiName(S.model); aiIcon(S.model, $('#modelChipIc'));
+    if (window.Pet && S.model) Pet.camo(aiInfo(S.model).color);
     c.title = 'IA em uso: ' + aiName(S.model) + ' (' + S.model + '). Clique para trocar';
   }
   // Manda um pedido mínimo a vários modelos para descobrir quais respondem de verdade nesta conta (e quão rápido).
@@ -813,7 +814,7 @@
         try {
           const ctx = buildContext(S.messages); ctxChars = ctx.reduce((n, x) => n + x.content.length, 0);
           for await (const ev of nvStream({ model: m, messages: ctx, signal: ac.signal })) {
-            if (ev.type === 'd') { got += ev.text; view.addText(ev.text); }
+            if (ev.type === 'd') { got += ev.text; view.addText(ev.text); Pet.stream(got.length); }
             else if (ev.type === 'u') usage = { p: Number(ev.usage.prompt_tokens) || 0, c: Number(ev.usage.completion_tokens) || 0 };
             else view.addReasoning(ev.text);
           }
@@ -827,7 +828,7 @@
       failed = e.code === 'model404' && tried.length > 1 ? `Tentei ${tried.length} modelos e nenhum está disponível para a sua conta. Escolha um em Configurações, na seção Modelos de IA.` : e.friendly ? e.message : 'Erro inesperado: ' + (e && e.message ? e.message : e);
       failCode = e.code;
       if (!e.friendly) console.error(e);
-    } finally { setStreaming(false); S.abort = null; }
+    } finally { Pet.noteReply(got); setStreaming(false); S.abort = null; }
     if (!got) S.model = first;
     else if (S.model !== first) { fillModels(S.models); toast(`O modelo ${first} não está disponível; usei ${S.model}.`); }
 
@@ -944,7 +945,7 @@
         else if (e.type === 'content_block_start' && e.content_block && e.content_block.type === 'text') { dropTyping(); curText = addTextBlock(asst); }
         else if (e.type === 'content_block_delta' && e.delta && e.delta.type === 'text_delta') {
           if (!curText) { dropTyping(); curText = addTextBlock(asst); }
-          curText.raw += e.delta.text;
+          curText.raw += e.delta.text; Pet.stream(curText.raw.length);
           if (!curText.pending) { const t = curText; t.pending = true; requestAnimationFrame(() => { t.pending = false; t.innerHTML = md(t.raw); scrollDown(); }); }
         }
       } else if (ev.type === 'assistant' && ev.message && Array.isArray(ev.message.content)) {
@@ -977,8 +978,8 @@
     const text = $('#inp').value.trim();
     if (!text) return;
     if (/^\/(dan[cç]ar|dance)$/i.test(text)) { $('#inp').value = ''; Pet.dance(); return; }   // segredinho do mascote
-    const pm = /^\/mascote(?:\s+(\S+))?$/i.exec(text); if (pm) { $('#inp').value = ''; Pet.command(pm[1]); return; }   // /mascote [esconder|mostrar|pequeno|medio|grande]
-    Pet.sent();
+    const pm = /^\/mascote(?:\s+(\S+))?$/i.exec(text); if (pm) { $('#inp').value = ''; Pet.command(pm[1]); return; }   // /mascote [esconder|mostrar|pequeno|medio|grande|quieto|livre]
+    Pet.sent(text);
     (S.mode === 'code' ? sendCode : sendChat)(text);
   }
   $('#send').addEventListener('click', submit);
@@ -1106,6 +1107,7 @@
   async function loadQuotaInputs() { const { q } = await quotaState(); $('#qLimit').value = q.limit; $('#qLeft').value = ''; refreshQuota(); }
   $('#petOn').checked = lsGet('kodi.pet') !== '0';
   $('#petOn').addEventListener('change', e => Pet.show(e.target.checked));
+  $('#petLife').addEventListener('change', e => Pet.setLife(e.target.checked));
   $('#inp').addEventListener('input', () => Pet.typing());
   $('#qApply').addEventListener('click', async () => {
     const limit = Math.round(Number($('#qLimit').value)); const leftTxt = $('#qLeft').value.trim();
